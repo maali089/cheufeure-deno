@@ -1,0 +1,142 @@
+// DEENO – Datenmodell für Buchungsanfragen, Kontaktanfragen und Flotten-Einstellungen.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BookingStatus {
+  RECEIVED     // Eingegangen
+  IN_PROGRESS  // In Bearbeitung
+  CONFIRMED    // Bestätigt
+  REJECTED     // Abgelehnt
+  COMPLETED    // Abgeschlossen
+}
+
+enum PaymentStatus {
+  NOT_REQUIRED // Anfrage ohne Online-Zahlung
+  PENDING      // Checkout gestartet
+  PAID         // Zahlung bestätigt (Webhook)
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+enum TripType {
+  ONE_WAY     // Einzelfahrt
+  ROUND_TRIP  // Hin- und Rückfahrt
+  AIRPORT     // Flughafentransfer
+  HOURLY      // Stundenbuchung
+}
+
+model BookingRequest {
+  id        String        @id @default(cuid())
+  reference String        @unique
+  status    BookingStatus @default(RECEIVED)
+
+  // Fahrt
+  tripType       TripType
+  pickupAddress  String
+  pickupPlaceId  String?
+  dropoffAddress String?
+  dropoffPlaceId String?
+  stops          String[]
+  pickupDate     String // YYYY-MM-DD (Ortszeit Europe/Berlin)
+  pickupTime     String // HH:MM
+  returnDate     String?
+  returnTime     String?
+  durationHours  Int?
+  passengers     Int
+  luggage        Int
+  flightNumber   String?
+  tripNotes      String?
+
+  // Fahrzeug
+  vehicleClass String
+
+  // Kunde
+  firstName       String
+  lastName        String
+  email           String
+  phone           String
+  company         String?
+  specialRequests String?
+  privacyAckAt    DateTime
+
+  // Vorbereitung für spätere Preiskalkulation (aktuell nicht automatisch befüllt)
+  distanceMeters  Int?
+  durationSeconds Int?
+  quotedPrice     Decimal? @db.Decimal(10, 2)
+  currency        String   @default("EUR")
+  pricingSource   String?  // z. B. "manual", "rules:v1"
+
+  // Online-Zahlung (Stripe) – keine Kartendaten auf eigenem Server
+  paymentStatus           PaymentStatus @default(NOT_REQUIRED)
+  stripeCheckoutSessionId String?       @unique
+  stripePaymentIntentId   String?
+  amountPaidCents         Int?
+  paidAt                  DateTime?
+
+  // Benachrichtigungen
+  operatorNotifiedAt DateTime?
+  customerNotifiedAt DateTime?
+  notificationError  String?
+
+  adminNotes String?
+
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  statusHistory BookingStatusChange[]
+
+  @@index([status, createdAt])
+  @@index([pickupDate])
+}
+
+model BookingStatusChange {
+  id         String         @id @default(cuid())
+  bookingId  String
+  booking    BookingRequest @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  fromStatus BookingStatus?
+  toStatus   BookingStatus
+  note       String?
+  changedBy  String
+  changedAt  DateTime       @default(now())
+
+  @@index([bookingId, changedAt])
+}
+
+model ContactMessage {
+  id          String    @id @default(cuid())
+  name        String
+  email       String
+  phone       String?
+  subject     String
+  message     String
+  emailSentAt DateTime?
+  emailError  String?
+  handled     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
+// Administrierbare Flotten-Einstellungen. Stammdaten (Name, Kapazität, Ausstattung)
+// liegen in src/config/fleet.ts, Verfügbarkeit und Freigabe werden hier gepflegt.
+model FleetSetting {
+  slug      String   @id
+  enabled   Boolean  @default(true)  // in Buchungsformular anfragbar
+  confirmed Boolean  @default(false) // vom Unternehmen als tatsächlich verfügbar bestätigt
+  note      String?
+  updatedAt DateTime @updatedAt
+}
+
+// Verarbeitete Stripe-Webhook-Ereignisse (Idempotenz: jedes Ereignis nur einmal)
+model StripeEvent {
+  id         String   @id
+  type       String
+  receivedAt DateTime @default(now())
+}
