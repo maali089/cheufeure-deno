@@ -17,7 +17,7 @@
     "test:unit": "playwright test --project=unit",
     "test:e2e": "playwright test --project=desktop --project=mobile",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "vercel-build": "node scripts/vercel-build.mjs",
     "test": "playwright test",
     "test:visual": "node tests/visual/capture.mjs"
   },

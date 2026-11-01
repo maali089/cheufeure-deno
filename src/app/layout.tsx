@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
-import { company, siteUrl } from "@/config/company";
+import { company, siteIndexable, siteUrl } from "@/config/company";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     description,
   },
   twitter: { card: "summary_large_image", title, description },
-  robots: { index: true, follow: true },
+  robots: siteIndexable ? { index: true, follow: true } : { index: false, follow: false },
   formatDetection: { telephone: false, email: false, address: false },
 };
 

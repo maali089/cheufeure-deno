@@ -34,5 +34,11 @@ export const siteUrl = (
   (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000")
 ).replace(/\/$/, "");
 
+/**
+ * Suchmaschinen-Indexierung erst nach Freigabe (Impressum/Datenschutz fertig):
+ * in Vercel SITE_INDEXING="true" setzen. Bis dahin noindex + robots.txt „Disallow: /“.
+ */
+export const siteIndexable = process.env.SITE_INDEXING === "true";
+
 export const telHref = `tel:${company.phone.e164}`;
 export const mailHref = `mailto:${company.email}`;
