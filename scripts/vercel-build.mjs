@@ -6,7 +6,7 @@ import { execSync } from "node:child_process";
 const run = (cmd) => execSync(cmd, { stdio: "inherit" });
 
 run("prisma generate");
-if (process.env.DATABASE_URL) {
+if (process.env.DIRECT_URL || process.env.DATABASE_URL) {
   run("prisma migrate deploy");
 } else {
   console.warn("[vercel-build] DATABASE_URL fehlt – Migrationen übersprungen. Buchungen werden erst mit Datenbank gespeichert.");

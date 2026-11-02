@@ -1,9 +1,12 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-// DATABASE_URL wird nur für Migrationen benötigt – `prisma generate` funktioniert auch ohne.
+// Die Datenbank-URL wird nur für Migrationen benötigt – `prisma generate` funktioniert auch ohne.
+// DIRECT_URL (z. B. Supabase Session-Pooler, Port 5432) hat Vorrang, weil Migrationen
+// über einen Transaktions-Pooler (Port 6543) fehlschlagen können.
+const migrationUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: { path: "prisma/migrations" },
-  ...(process.env.DATABASE_URL ? { datasource: { url: process.env.DATABASE_URL } } : {}),
+  ...(migrationUrl ? { datasource: { url: migrationUrl } } : {}),
 });

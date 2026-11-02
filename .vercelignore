@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+.local-db/
+.local-db-*/
+node_modules/
+.next/
+test-results/
+playwright-report/
+src/generated/
