@@ -1,17 +1,20 @@
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
+// Cloudflare Turnstile (Bot-Schutz) nur erlauben, wenn er konfiguriert ist
+const turnstile = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ? " https://challenges.cloudflare.com" : "";
 
 // Content-Security-Policy: keine externen Skripte, keine Tracker.
 // 'unsafe-inline' für Skripte ist für die Hydration-Daten von Next.js ohne Nonce nötig.
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${turnstile}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
-  "frame-src 'none'",
+  `connect-src 'self'${isDev ? " ws: wss:" : ""}${turnstile}`,
+  turnstile ? `frame-src${turnstile}` : "frame-src 'none'",
+  "manifest-src 'self'",
   "frame-ancestors 'none'",
   "form-action 'self'",
   "base-uri 'self'",
@@ -27,10 +30,13 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Cross-Origin-Resource-Policy", value: "same-site" },
+  { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
 ];
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  productionBrowserSourceMaps: false, // kein Quellcode-Leak über Source Maps
   reactStrictMode: true,
   images: {
     formats: ["image/avif", "image/webp"],

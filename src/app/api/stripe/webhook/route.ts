@@ -5,6 +5,7 @@ import { bookingPaidCustomerMail, bookingPaidOperatorMail } from "@/lib/mail/tem
 import { mailConfig, sendMail } from "@/lib/mail/transport";
 import { db, isDatabaseConfigured } from "@/lib/server/db";
 import { isStripeConfigured, stripe, toCents } from "@/lib/server/payments";
+import { logError } from "@/lib/server/log";
 
 export const runtime = "nodejs";
 
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
   } catch (e) {
     // Verarbeitung fehlgeschlagen → Ereignis wieder freigeben, damit Stripe erneut zustellt
     await db().stripeEvent.delete({ where: { id: event.id } }).catch(() => {});
-    console.error("[stripe] Verarbeitung fehlgeschlagen:", e instanceof Error ? e.message : e);
+    logError("stripe", e, "Verarbeitung fehlgeschlagen");
     return NextResponse.json({ error: "processing_failed" }, { status: 500 });
   }
   return NextResponse.json({ received: true });

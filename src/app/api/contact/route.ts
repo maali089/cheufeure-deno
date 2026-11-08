@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { contactOperatorMail } from "@/lib/mail/templates";
 import { mailConfig, sendMail } from "@/lib/mail/transport";
 import { db, isDatabaseConfigured } from "@/lib/server/db";
+import { logError } from "@/lib/server/log";
 import { rateLimit } from "@/lib/server/rate-limit";
+import { verifyTurnstile } from "@/lib/server/turnstile";
 import { PayloadError, clientIp, isSameOrigin, jsonError, looksLikeSpam, readJson } from "@/lib/server/request-guard";
 import { contactSchema, flattenIssues } from "@/lib/validation";
 
@@ -10,7 +12,8 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   if (!isSameOrigin(req)) return jsonError(403, "Ungültige Herkunft der Anfrage.");
-  const limit = rateLimit(`contact:${clientIp(req)}`, 4, 10 * 60 * 1000);
+  const ip = clientIp(req);
+  const limit = await rateLimit(`contact:${ip}`, 4, 10 * 60 * 1000);
   if (!limit.ok) return jsonError(429, "Zu viele Nachrichten in kurzer Zeit. Bitte versuchen Sie es später erneut.");
 
   let body: unknown;
@@ -26,6 +29,9 @@ export async function POST(req: Request) {
 
   if (data.website) return NextResponse.json({ ok: true, delivery: "sent" }); // Honeypot
   if (looksLikeSpam(data)) return jsonError(400, "Die Nachricht konnte nicht verarbeitet werden. Bitte versuchen Sie es erneut.");
+  if (!(await verifyTurnstile(data.turnstileToken, ip, "contact"))) {
+    return jsonError(400, "Die Sicherheitsprüfung ist fehlgeschlagen. Bitte bestätigen Sie die Prüfung erneut.");
+  }
 
   const mail = contactOperatorMail(data);
   const result = await sendMail({ to: mailConfig().operatorTo, subject: mail.subject, html: mail.html, text: mail.text, replyTo: data.email });
@@ -47,7 +53,7 @@ export async function POST(req: Request) {
       });
       stored = true;
     } catch (e) {
-      console.error("[contact] Speichern fehlgeschlagen:", e instanceof Error ? e.message : e);
+      logError("contact", e, "Speichern fehlgeschlagen");
     }
   }
 

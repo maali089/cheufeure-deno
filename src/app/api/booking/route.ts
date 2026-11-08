@@ -10,7 +10,9 @@ import { offersForTrip, stripe, toCents } from "@/lib/server/payments";
 import { siteUrl } from "@/config/company";
 import { vehicleLabel } from "@/config/fleet";
 import { formatDateDe } from "@/lib/datetime";
+import { logError } from "@/lib/server/log";
 import { rateLimit } from "@/lib/server/rate-limit";
+import { verifyTurnstile } from "@/lib/server/turnstile";
 import { PayloadError, clientIp, isSameOrigin, jsonError, looksLikeSpam, readJson } from "@/lib/server/request-guard";
 import { bookingSchema, flattenIssues, tripTypeLabels } from "@/lib/validation";
 
@@ -21,7 +23,8 @@ const describe = (r: MailResult) => (r.status === "sent" ? null : r.status === "
 export async function POST(req: Request) {
   if (!isSameOrigin(req)) return jsonError(403, "Ungültige Herkunft der Anfrage.");
 
-  const limit = rateLimit(`booking:${clientIp(req)}`, 5, 10 * 60 * 1000);
+  const ip = clientIp(req);
+  const limit = await rateLimit(`booking:${ip}`, 5, 10 * 60 * 1000);
   if (!limit.ok) return jsonError(429, "Zu viele Anfragen in kurzer Zeit. Bitte versuchen Sie es später erneut oder rufen Sie uns an.");
 
   let body: unknown;
@@ -38,6 +41,9 @@ export async function POST(req: Request) {
   // Spam-Schutz: Honeypot → stillschweigend verwerfen
   if (data.website) return NextResponse.json({ ok: true, reference: createBookingReference(), customerMail: "sent" });
   if (looksLikeSpam(data, 4000)) return jsonError(400, "Die Anfrage konnte nicht verarbeitet werden. Bitte versuchen Sie es erneut.");
+  if (!(await verifyTurnstile(data.turnstileToken, ip, "booking"))) {
+    return jsonError(400, "Die Sicherheitsprüfung ist fehlgeschlagen. Bitte bestätigen Sie die Prüfung erneut oder rufen Sie uns an.");
+  }
 
   const fleet = await getFleetWithSettings();
   const vehicle = fleet.find((v) => v.slug === data.vehicleClass);
@@ -51,6 +57,26 @@ export async function POST(req: Request) {
   }
 
   const stops = data.stops.map((s) => s.address).filter((s) => s.length > 0);
+  const email = data.email.toLowerCase();
+
+  // Doppelte Übermittlung (Doppelklick, Wiederholung, Replay) innerhalb von 15 Minuten abfangen
+  try {
+    const duplicate = await db().bookingRequest.findFirst({
+      where: {
+        email,
+        pickupDate: data.pickupDate,
+        pickupTime: data.pickupTime,
+        pickupAddress: data.pickupAddress,
+        vehicleClass: data.vehicleClass,
+        createdAt: { gt: new Date(Date.now() - 15 * 60 * 1000) },
+      },
+      select: { id: true },
+    });
+    if (duplicate) return jsonError(409, "Diese Anfrage ist bereits bei uns eingegangen. Die Anfragenummer finden Sie in Ihrer Bestätigungs-E-Mail – bei Fragen rufen Sie uns gerne an.");
+  } catch (e) {
+    logError("booking", e, "Duplikatprüfung");
+    return jsonError(503, "Ihre Anfrage konnte gerade nicht gespeichert werden. Bitte versuchen Sie es erneut oder rufen Sie uns an.");
+  }
 
   // Optionale echte Routenberechnung (nur wenn konfiguriert) – keine geschätzten Werte.
   // Zahlung nur, wenn der Server einen verbindlichen Preis ermittelt und alle Freigaben vorliegen
@@ -110,7 +136,7 @@ export async function POST(req: Request) {
           vehicleClass: data.vehicleClass,
           firstName: data.firstName,
           lastName: data.lastName,
-          email: data.email.toLowerCase(),
+          email,
           phone: data.phone,
           company: data.company,
           specialRequests: data.specialRequests,
@@ -126,7 +152,7 @@ export async function POST(req: Request) {
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") continue;
-      console.error("[booking] Speichern fehlgeschlagen:", e instanceof Error ? e.message : e);
+      logError("booking", e, "Speichern fehlgeschlagen");
       return jsonError(503, "Ihre Anfrage konnte gerade nicht gespeichert werden. Bitte versuchen Sie es erneut oder rufen Sie uns an.");
     }
   }
@@ -136,9 +162,13 @@ export async function POST(req: Request) {
   const cfg = mailConfig();
   const op = bookingOperatorMail(data, booking.reference);
   const cu = bookingCustomerMail(data, booking.reference);
+  // Bestätigungen an dieselbe (fremde) Adresse begrenzen – verhindert Mail-Bombing über das Formular
+  const recipientLimit = await rateLimit(`booking-mail:${email}`, 3, 24 * 60 * 60 * 1000);
   const [opResult, cuResult] = await Promise.all([
     sendMail({ to: cfg.operatorTo, subject: op.subject, html: op.html, text: op.text, replyTo: data.email }),
-    sendMail({ to: data.email, subject: cu.subject, html: cu.html, text: cu.text, replyTo: cfg.replyTo }),
+    recipientLimit.ok
+      ? sendMail({ to: data.email, subject: cu.subject, html: cu.html, text: cu.text, replyTo: cfg.replyTo })
+      : Promise.resolve<MailResult>({ status: "disabled", reason: "Empfänger-Limit für Bestätigungen erreicht" }),
   ]);
 
   const errors = [describe(opResult) && `operator ${describe(opResult)}`, describe(cuResult) && `customer ${describe(cuResult)}`].filter(Boolean);
@@ -154,7 +184,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (e) {
-    console.error("[booking] Benachrichtigungsstatus konnte nicht gespeichert werden:", e instanceof Error ? e.message : e);
+    logError("booking", e, "Benachrichtigungsstatus");
   }
 
   const mailFlag = cuResult.status === "sent" ? "1" : "0";
@@ -193,7 +223,7 @@ export async function POST(req: Request) {
       await db().bookingRequest.update({ where: { id: booking.id }, data: { stripeCheckoutSessionId: session.id } });
       if (session.url) return NextResponse.json({ ok: true, reference: ref, customerMail: cuResult.status === "sent" ? "sent" : "not_sent", checkoutUrl: session.url });
     } catch (e) {
-      console.error("[booking] Stripe Checkout fehlgeschlagen:", e instanceof Error ? e.message : e);
+      logError("booking", e, "Stripe Checkout fehlgeschlagen");
       await db().bookingRequest.update({ where: { id: booking.id }, data: { paymentStatus: "FAILED" } }).catch(() => {});
       return NextResponse.json({ ok: true, reference: booking.reference, customerMail: cuResult.status === "sent" ? "sent" : "not_sent", paymentError: true });
     }

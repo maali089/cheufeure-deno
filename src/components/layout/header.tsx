@@ -59,7 +59,7 @@ export function Header() {
         }`}
         style={{ paddingTop: `max(env(safe-area-inset-top), ${solid ? "0.75rem" : "1.25rem"})` }}
       >
-        <div className="container-lux flex items-center justify-between gap-6">
+        <div className="container-lux flex items-center justify-between gap-3 sm:gap-6">
           <BrandLink compact={scrolled} />
 
           <nav aria-label="Hauptnavigation" className="hidden xl:block">

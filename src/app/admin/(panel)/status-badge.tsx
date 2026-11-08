@@ -6,6 +6,7 @@ const styles: Record<BookingStatusValue, string> = {
   CONFIRMED: "border-emerald-300/50 text-emerald-200",
   REJECTED: "border-rose-300/50 text-rose-200",
   COMPLETED: "border-white/25 text-ivory/70",
+  CANCELLED: "border-white/15 text-mist",
 };
 
 export function StatusBadge({ status }: { status: BookingStatusValue }) {

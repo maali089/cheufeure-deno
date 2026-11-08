@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { CAR, T, WORLD, computeFrame } from "../../src/components/story/engine";
 import { berlinNow } from "../../src/lib/datetime";
-import { escapeHtml } from "../../src/lib/mail/templates";
+import { bookingCustomerMail, bookingOperatorMail, escapeHtml } from "../../src/lib/mail/templates";
 import { quote } from "../../src/lib/pricing";
 import { bookingReferencePattern, createBookingReference } from "../../src/lib/reference";
 import { verifyPassword } from "../../src/lib/server/password";
-import { createSessionToken, verifySessionToken } from "../../src/lib/server/session-token";
+import { createSessionToken, sessionIdHash, verifySessionToken } from "../../src/lib/server/session-token";
+import { base32Decode, base32Encode, currentStep, totpCode, verifyTotp } from "../../src/lib/server/totp";
 import { bookingSchema, contactSchema, tripStepSchema, vehicleStepSchema } from "../../src/lib/validation";
 import { whatsappHref, whatsappTripMessage } from "../../src/lib/whatsapp";
 
@@ -100,20 +101,99 @@ test.describe("Hilfsfunktionen", () => {
   test("Admin-Session: Signatur, Ablauf und Manipulation", () => {
     process.env.ADMIN_PASSWORD_HASH = "scrypt:x";
     process.env.ADMIN_SESSION_SECRET = "a".repeat(48);
-    const token = createSessionToken("deeno");
+    const { token, sid } = createSessionToken("deeno");
     expect(verifySessionToken(token)?.username).toBe("deeno");
+    expect(verifySessionToken(token)?.sid).toBe(sid);
     const [payload, sig] = token.split(".");
-    const forged = Buffer.from(JSON.stringify({ u: "admin", exp: 9999999999 })).toString("base64url");
+    // manipulierte Rolle/Benutzer mit alter Signatur
+    const forged = Buffer.from(JSON.stringify({ u: "admin", sid: "x", exp: 9999999999 })).toString("base64url");
     expect(verifySessionToken(`${forged}.${sig}`)).toBeNull();
     expect(verifySessionToken(`${payload}.x${sig!.slice(1)}`)).toBeNull();
+    expect(verifySessionToken(`${payload}.${sig}.extra`)).toBeNull();
+    expect(verifySessionToken("")).toBeNull();
+    expect(verifySessionToken("a".repeat(5000))).toBeNull();
+    // abgelaufen
     expect(verifySessionToken(token, Date.now() + 9 * 3600 * 1000)).toBeNull();
+    // anderer Signaturschlüssel → ungültig
+    process.env.ADMIN_SESSION_SECRET = "b".repeat(48);
+    expect(verifySessionToken(token)).toBeNull();
+    process.env.ADMIN_SESSION_SECRET = "a".repeat(48);
+    // Passwortwechsel → alle bestehenden Sitzungen ungültig
+    process.env.ADMIN_PASSWORD_HASH = "scrypt:y";
+    expect(verifySessionToken(token)).toBeNull();
+    process.env.ADMIN_PASSWORD_HASH = "scrypt:x";
+    expect(verifySessionToken(token)?.username).toBe("deeno");
+    // zwei Anmeldungen erhalten unterschiedliche Sitzungs-IDs
+    expect(createSessionToken("deeno").sid).not.toBe(sid);
+    expect(sessionIdHash(sid)).toMatch(/^[a-f0-9]{64}$/);
   });
-  test("Passwort-Hash (scrypt)", async () => {
+  test("TOTP (RFC 6238): Testvektoren, Zeitfenster, Formatprüfung", () => {
+    // RFC 6238, Anhang B (SHA-1, Schlüssel "12345678901234567890"), letzte 6 Ziffern
+    const key = Buffer.from("12345678901234567890");
+    expect(totpCode(key, Math.floor(59 / 30))).toBe("287082");
+    expect(totpCode(key, Math.floor(1111111109 / 30))).toBe("081804");
+    expect(totpCode(key, Math.floor(1234567890 / 30))).toBe("005924");
+    const secret = base32Encode(key);
+    expect(base32Decode(secret).equals(key)).toBe(true);
+    const now = 1234567890 * 1000;
+    expect(verifyTotp(secret, "005924", now)).toBe(Math.floor(1234567890 / 30));
+    expect(verifyTotp(secret, "005 924", now)).not.toBeNull();
+    // ±1 Zeitschritt erlaubt, ±2 nicht
+    expect(verifyTotp(secret, "005924", now + 30_000)).not.toBeNull();
+    expect(verifyTotp(secret, "005924", now + 90_000)).toBeNull();
+    expect(verifyTotp(secret, "000000", now)).toBeNull();
+    expect(verifyTotp(secret, "' OR 1=1 --", now)).toBeNull();
+    expect(verifyTotp(secret, "", now)).toBeNull();
+    expect(verifyTotp("!!!", "005924", now)).toBeNull();
+  });
+  test("TOTP-Skript erzeugt gültigen Schlüssel", async () => {
+    const { execFileSync } = await import("node:child_process");
+    const out = execFileSync(process.execPath, ["scripts/totp-secret.mjs"]).toString();
+    const secret = /ADMIN_TOTP_SECRET=([A-Z2-7]+)/.exec(out)?.[1];
+    expect(secret).toBeTruthy();
+    expect(base32Decode(secret!).length).toBe(20);
+    const code = totpCode(base32Decode(secret!), currentStep());
+    expect(verifyTotp(secret!, code)).toBe(currentStep());
+  });
+  test("Kunden-E-Mail spiegelt keine Freitexte, HTML wird escaped", () => {
+    const data = bookingSchema.parse({ ...validBooking, firstName: "<script>alert(1)</script>", tripNotes: "Klicken Sie hier: https://phishing.example" });
+    const cu = bookingCustomerMail(data, "DN-261106-ABCDEF");
+    expect(cu.html).not.toContain("phishing.example");
+    expect(cu.text).not.toContain("phishing.example");
+    expect(cu.html).not.toContain("<script>");
+    expect(cu.html).toContain("&lt;script&gt;");
+    // Der Betreiber erhält den Freitext weiterhin
+    expect(bookingOperatorMail(data, "DN-261106-ABCDEF").text).toContain("phishing.example");
+  });
+  test("Mass Assignment: interne Felder werden aus Anfragen entfernt", () => {
+    const parsed = bookingSchema.parse({ ...validBooking, status: "CONFIRMED", paymentStatus: "PAID", quotedPrice: 1, adminNotes: "x", id: "abc", reference: "DN-000000-AAAAAA" });
+    for (const k of ["status", "paymentStatus", "quotedPrice", "adminNotes", "id", "reference"]) expect(k in parsed).toBe(false);
+  });
+  test("Übergroße und manipulierte Eingaben werden abgelehnt", () => {
+    expect(bookingSchema.safeParse({ ...validBooking, firstName: "x".repeat(81) }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...validBooking, tripNotes: "x".repeat(1001) }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...validBooking, stops: Array.from({ length: 6 }, () => ({ address: "A" })) }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...validBooking, passengers: -1 }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...validBooking, passengers: "1; DROP TABLE" }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...validBooking, tripType: "FREE_RIDE" }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...validBooking, privacy: "true" }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...validBooking, email: "a@b.de\r\nBcc: x@y.de" }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...validBooking, phone: "<img src=x onerror=alert(1)>" }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...validBooking, turnstileToken: "x".repeat(3000) }).success).toBe(false);
+    expect(contactSchema.safeParse({ name: "Max", email: "max@example.com", subject: "Hack", message: "x".repeat(20), privacy: true, startedAt: 1 }).success).toBe(false);
+  });
+  test("Passwort-Hash (scrypt) inkl. Parameterprüfung", async () => {
     const { execFileSync } = await import("node:child_process");
     const hash = execFileSync(process.execPath, ["scripts/hash-password.mjs", "ein-sehr-sicheres-passwort"]).toString().trim();
     expect(verifyPassword("ein-sehr-sicheres-passwort", hash)).toBe(true);
     expect(verifyPassword("falsch", hash)).toBe(false);
     expect(verifyPassword("x", undefined)).toBe(false);
+    expect(hash.startsWith("scrypt:131072:8:1:")).toBe(true);
+    // Unsichere oder manipulierte Parameter werden nicht akzeptiert
+    const [, , , , salt, h] = hash.split(":");
+    expect(verifyPassword("ein-sehr-sicheres-passwort", `scrypt:2:8:1:${salt}:${h}`)).toBe(false);
+    expect(verifyPassword("ein-sehr-sicheres-passwort", `scrypt:1048576:32:1:${salt}:${h}`)).toBe(false);
+    expect(verifyPassword("ein-sehr-sicheres-passwort", "md5:abc")).toBe(false);
   });
 });
 

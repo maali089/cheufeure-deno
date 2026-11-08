@@ -13,7 +13,7 @@ export const runtime = "nodejs";
  */
 export async function POST(req: Request) {
   if (!isSameOrigin(req)) return jsonError(403, "Ungültige Herkunft der Anfrage.");
-  if (!rateLimit(`quote:${clientIp(req)}`, 30, 60 * 1000).ok) return jsonError(429, "Zu viele Anfragen.");
+  if (!(await rateLimit(`quote:${clientIp(req)}`, 30, 60 * 1000)).ok) return jsonError(429, "Zu viele Anfragen.");
   let body: unknown;
   try {
     body = await readJson(req, 12_000);

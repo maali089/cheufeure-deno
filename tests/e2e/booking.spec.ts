@@ -1,9 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
-import { ADMIN_PASS, ADMIN_USER, futureDate, randomIp } from "./helpers";
+import { ADMIN_TOTP_SECRET, ADMIN_USER, adminLogin, futureDate, randomIp, totpNow } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
 let reference = "";
+// Eindeutig pro Lauf (Duplikatschutz lehnt identische Anfragen innerhalb von 15 Min. ab)
+const customerEmail = `erika.test+${Date.now()}@example.com`;
 
 async function openForm(page: Page) {
   await page.setExtraHTTPHeaders({ "x-forwarded-for": randomIp() });
@@ -69,7 +71,7 @@ test("vollständige Buchungsanfrage → Bestätigungsseite mit Anfragenummer", a
   await expect(page.getByText("Bitte bestätigen Sie die Datenschutzhinweise.")).toBeVisible();
   await page.locator("#firstName").fill("Erika");
   await page.locator("#lastName").fill("Testkundin");
-  await page.locator("#email").fill("erika.test@example.com");
+  await page.locator("#email").fill(customerEmail);
   await page.locator("#phone").fill("+49 170 1234567");
   await page.locator("#company").fill("Muster GmbH");
   await page.locator('label[for="privacy"]').click();
@@ -81,7 +83,7 @@ test("vollständige Buchungsanfrage → Bestätigungsseite mit Anfragenummer", a
   await expect(page.getByText("LH 2034")).toBeVisible();
   await expect(page.getByText("Mercedes-Benz S-Klasse · First Class")).toBeVisible();
   const wa = await page.getByRole("link", { name: /Fahrtdaten in WhatsApp übernehmen/ }).getAttribute("href");
-  expect(decodeURIComponent(wa!)).not.toContain("erika.test@example.com");
+  expect(decodeURIComponent(wa!)).not.toContain(customerEmail);
   await page.getByRole("button", { name: "Ändern" }).nth(2).click();
   await expect(page.locator("#firstName")).toHaveValue("Erika");
   await page.getByRole("button", { name: "Weiter", exact: true }).click();
@@ -103,12 +105,11 @@ test("Adminbereich: geschützt, Anfrage gespeichert, Status änderbar", async ({
 
   await page.locator("#username").fill(ADMIN_USER);
   await page.locator("#password").fill("falsches-passwort");
+  if (ADMIN_TOTP_SECRET) await page.locator("#totp").fill(totpNow());
   await page.getByRole("button", { name: "Anmelden" }).click();
-  await expect(page.getByText("Benutzername oder Passwort ist falsch.")).toBeVisible();
+  await expect(page.getByText("Anmeldung fehlgeschlagen.", { exact: false })).toBeVisible();
 
-  await page.locator("#password").fill(ADMIN_PASS);
-  await page.getByRole("button", { name: "Anmelden" }).click();
-  await expect(page.getByRole("heading", { name: "Buchungsanfragen" })).toBeVisible();
+  await adminLogin(page);
 
   await page.getByLabel("Suche").fill(reference);
   await page.getByRole("button", { name: "Suchen" }).click();
@@ -116,7 +117,7 @@ test("Adminbereich: geschützt, Anfrage gespeichert, Status änderbar", async ({
   await expect(page.getByRole("heading", { name: reference })).toBeVisible();
   await expect(page.getByText("Ganghoferstr. 29, 82216 Maisach")).toBeVisible();
   await expect(page.getByText("Olching Bahnhof")).toBeVisible();
-  await expect(page.getByText("erika.test@example.com")).toBeVisible();
+  await expect(page.getByText(customerEmail).first()).toBeVisible();
 
   await page.getByLabel("Status").selectOption("IN_PROGRESS");
   await page.getByLabel("Notiz", { exact: true }).fill("Verfügbarkeit wird geprüft");

@@ -15,6 +15,7 @@ enum BookingStatus {
   CONFIRMED    // Bestätigt
   REJECTED     // Abgelehnt
   COMPLETED    // Abgeschlossen
+  CANCELLED    // Storniert (nach Bestätigung abgesagt)
 }
 
 enum PaymentStatus {
@@ -73,6 +74,12 @@ model BookingRequest {
   quotedPrice     Decimal? @db.Decimal(10, 2)
   currency        String   @default("EUR")
   pricingSource   String?  // z. B. "manual", "rules:v1"
+
+  // Preisabsprache per WhatsApp/Telefon – nur der Betreiber trägt den Preis ein
+  agreedPrice        Decimal?  @db.Decimal(10, 2)
+  priceAgreedAt      DateTime?
+  confirmedAt        DateTime?
+  confirmationSentAt DateTime? // Bestätigungs-E-Mail an den Kunden versendet
 
   // Online-Zahlung (Stripe) – keine Kartendaten auf eigenem Server
   paymentStatus           PaymentStatus @default(NOT_REQUIRED)
@@ -139,4 +146,36 @@ model StripeEvent {
   id         String   @id
   type       String
   receivedAt DateTime @default(now())
+}
+
+// Serverseitige Admin-Sitzungen: ermöglichen echtes Abmelden (Widerruf) und Leerlauf-Timeout.
+// Gespeichert wird nur ein SHA-256-Hash der Sitzungs-ID, nie das Cookie selbst.
+model AdminSession {
+  id         String    @id // SHA-256 (hex) der zufälligen Sitzungs-ID aus dem Cookie
+  username   String
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([expiresAt])
+}
+
+// Bereits verwendete TOTP-Codes (2FA) – verhindert die Wiederverwendung eines Codes.
+model AdminTotpUse {
+  username String
+  step     Int // Zeitschritt (Unix-Zeit / 30 s)
+  usedAt   DateTime @default(now())
+
+  @@id([username, step])
+}
+
+// Zentrales Rate-Limit (gilt über alle Server-Instanzen). Schlüssel sind HMAC-Hashes,
+// es werden keine IP-Adressen oder E-Mail-Adressen im Klartext gespeichert.
+model RateLimitBucket {
+  key           String @id
+  count         Int
+  windowStartMs BigInt
+
+  @@index([windowStartMs])
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import { fleet, type Vehicle } from "@/config/fleet";
 import { db, isDatabaseConfigured } from "./db";
+import { logError } from "./log";
 
 export interface FleetEntry extends Vehicle {
   enabled: boolean;
@@ -15,7 +16,7 @@ export async function getFleetWithSettings(): Promise<FleetEntry[]> {
     try {
       settings = await db().fleetSetting.findMany();
     } catch (e) {
-      console.error("[fleet] Einstellungen konnten nicht geladen werden:", e instanceof Error ? e.message : e);
+      logError("fleet", e, "Einstellungen konnten nicht geladen werden");
     }
   }
   return fleet.map((v) => {

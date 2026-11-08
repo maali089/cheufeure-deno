@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "@/generated/prisma/client";
 import { vehicleBySlug } from "@/config/fleet";
 import { formatDateDe, formatDateTimeDe } from "@/lib/datetime";
+import { formatEuro } from "@/lib/price";
 import { requireAdmin } from "@/lib/server/auth";
 import { db } from "@/lib/server/db";
 import { bookingStatusLabels, bookingStatuses, tripTypeLabels, type BookingStatusValue } from "@/lib/validation";
@@ -40,7 +41,7 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
       orderBy: sortByPickup ? [{ pickupDate: "asc" }, { pickupTime: "asc" }] : { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      select: { id: true, reference: true, status: true, tripType: true, pickupDate: true, pickupTime: true, pickupAddress: true, dropoffAddress: true, firstName: true, lastName: true, vehicleClass: true, createdAt: true, passengers: true },
+      select: { id: true, reference: true, status: true, tripType: true, pickupDate: true, pickupTime: true, pickupAddress: true, dropoffAddress: true, firstName: true, lastName: true, vehicleClass: true, createdAt: true, passengers: true, phone: true, agreedPrice: true },
     }),
     db().bookingRequest.count({ where }),
     db().bookingRequest.groupBy({ by: ["status"], _count: { _all: true } }),
@@ -64,7 +65,7 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
         </div>
         <form className="flex gap-2" action="/admin">
           {status && <input type="hidden" name="status" value={status} />}
-          <input name="q" defaultValue={q} placeholder="Name, E-Mail, Nummer …" className="field min-h-11 w-64" aria-label="Suche" />
+          <input name="q" defaultValue={q} placeholder="Name, E-Mail, Nummer …" className="field min-h-11 w-full min-w-0 md:w-64" aria-label="Suche" />
           <button className="btn btn-ghost min-h-11 px-4">Suchen</button>
         </form>
       </div>
@@ -83,7 +84,35 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
         </Link>
       </nav>
 
-      <div className="mt-6 overflow-x-auto border border-white/[0.08]">
+      {/* Smartphone: Karten statt breiter Tabelle */}
+      <ul className="mt-6 space-y-3 md:hidden" aria-label="Anfragen">
+        {items.length === 0 && <li className="border border-white/[0.08] px-4 py-10 text-center text-sm text-mist">Keine Anfragen gefunden.</li>}
+        {items.map((b) => (
+          <li key={b.id}>
+            <Link href={`/admin/anfragen/${b.id}`} className="block border border-white/[0.08] bg-coal p-4 active:border-gold/60">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium tracking-wide text-gold">{b.reference}</span>
+                <StatusBadge status={b.status} />
+              </div>
+              <p className="mt-3 text-sm">
+                {formatDateDe(b.pickupDate)}, {b.pickupTime} Uhr · {tripTypeLabels[b.tripType]}
+              </p>
+              <p className="mt-1 text-sm">
+                {b.firstName} {b.lastName} <span className="text-mist">· {b.phone}</span>
+              </p>
+              <p className="mt-1 truncate text-xs text-mist">
+                {b.pickupAddress} → {b.dropoffAddress ?? "nach Absprache"}
+              </p>
+              <p className="mt-1 text-xs text-mist">
+                {vehicleBySlug(b.vehicleClass)?.category ?? b.vehicleClass} · {b.passengers} Pers.
+                {b.agreedPrice ? <span className="text-ivory/80"> · {formatEuro(b.agreedPrice)}</span> : null}
+              </p>
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-6 hidden overflow-x-auto border border-white/[0.08] md:block">
         <table className="w-full min-w-[56rem] text-left text-sm">
           <thead className="bg-coal text-[0.62rem] uppercase tracking-[0.16em] text-mist">
             <tr>
@@ -119,7 +148,9 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
                 </td>
                 <td className="px-4 py-4">
                   {b.firstName} {b.lastName}
-                  <span className="block text-xs text-mist">{b.passengers} Pers.</span>
+                  <span className="block text-xs text-mist">
+                    {b.phone} · {b.passengers} Pers.
+                  </span>
                 </td>
                 <td className="max-w-xs px-4 py-4 text-xs text-ivory/80">
                   <span className="block truncate">{b.pickupAddress}</span>
@@ -128,6 +159,7 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
                 <td className="px-4 py-4 text-xs">{vehicleBySlug(b.vehicleClass)?.category ?? b.vehicleClass}</td>
                 <td className="px-4 py-4">
                   <StatusBadge status={b.status} />
+                  {b.agreedPrice && <span className="mt-1 block text-xs text-ivory/80">{formatEuro(b.agreedPrice)}</span>}
                 </td>
                 <td className="px-4 py-4 text-xs text-mist">{formatDateTimeDe(b.createdAt)}</td>
               </tr>

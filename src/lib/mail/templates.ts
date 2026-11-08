@@ -58,7 +58,12 @@ function rows(items: [string, string | undefined | null][]) {
 const section = (title: string) =>
   `<div style="font-size:11px;letter-spacing:3px;text-transform:uppercase;color:${C.gold};margin:26px 0 6px;">${escapeHtml(title)}</div>`;
 
-function tripRows(b: BookingData): [string, string | undefined][] {
+/**
+ * forCustomer: Freitext (Hinweise) wird nicht an die angegebene Kunden-Adresse gespiegelt –
+ * sonst könnte das Formular missbraucht werden, um beliebige Texte über die DEENO-Domain
+ * an fremde E-Mail-Adressen zu senden.
+ */
+function tripRows(b: BookingData, forCustomer = false): [string, string | undefined][] {
   const stops = b.stops.map((s) => s.address).filter(Boolean);
   return [
     ["Fahrtart", tripTypeLabels[b.tripType]],
@@ -72,13 +77,13 @@ function tripRows(b: BookingData): [string, string | undefined][] {
     ["Personen", String(b.passengers)],
     ["Gepäckstücke", String(b.luggage)],
     ["Flugnummer", b.flightNumber],
-    ["Hinweise zur Fahrt", b.tripNotes],
+    ["Hinweise zur Fahrt", b.tripNotes ? (forCustomer ? "übermittelt" : b.tripNotes) : undefined],
     ["Fahrzeugklasse", vehicleLabel(b.vehicleClass)],
   ];
 }
 
-function tripText(b: BookingData) {
-  return tripRows(b)
+function tripText(b: BookingData, forCustomer = false) {
+  return tripRows(b, forCustomer)
     .filter(([, v]) => v)
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
@@ -116,14 +121,14 @@ export function bookingCustomerMail(b: BookingData, reference: string) {
     subject: `Ihre Buchungsanfrage ${reference} ist eingegangen – DEENO`,
     html: layout({
       preheader: "Ihre Buchungsanfrage ist eingegangen. Wir melden uns zur Bestätigung Ihrer Fahrt.",
-      title: `Vielen Dank, ${escapeHtml(b.firstName)} ${escapeHtml(b.lastName)}.`,
+      title: `Vielen Dank, ${b.firstName} ${b.lastName}.`, // layout() escaped den Titel
       intro: `Ihre Buchungsanfrage ist eingegangen. Wir melden uns zur Bestätigung Ihrer Fahrt.<br><br>Ihre Anfragenummer lautet <strong style="color:${C.gold};letter-spacing:1px;">${escapeHtml(reference)}</strong>. Bitte geben Sie diese bei Rückfragen an.`,
-      body: `<p style="font-size:13px;line-height:1.6;color:${C.mist};margin:0 0 8px;">Bitte beachten Sie: Es handelt sich um eine Anfrage. Die Fahrt gilt erst als gebucht, wenn wir sie Ihnen ausdrücklich bestätigt haben. Den Preis erhalten Sie als individuelles Angebot.</p>
-${section("Ihre Angaben")}${rows(tripRows(b))}
+      body: `<p style="font-size:13px;line-height:1.6;color:${C.mist};margin:0 0 8px;">Bitte beachten Sie: Es handelt sich um eine Anfrage. Die Fahrt gilt erst als gebucht, wenn wir sie Ihnen ausdrücklich bestätigt haben. Den Fahrpreis vereinbaren wir persönlich mit Ihnen – telefonisch oder per WhatsApp.</p>
+${section("Ihre Angaben")}${rows(tripRows(b, true))}
 <p style="font-size:14px;line-height:1.6;margin:22px 0 0;color:${C.ivory};">Möchten Sie etwas ändern? Antworten Sie einfach auf diese E-Mail oder rufen Sie uns an: <a href="${telHref}" style="color:${C.gold};text-decoration:none;">${escapeHtml(company.phone.display)}</a>.</p>`,
       footerNote: "Sie erhalten diese E-Mail, weil über unsere Website eine Buchungsanfrage mit Ihrer E-Mail-Adresse gestellt wurde. Falls Sie dies nicht waren, können Sie diese Nachricht ignorieren.",
     }),
-    text: `Vielen Dank, ${b.firstName} ${b.lastName}.\n\nIhre Buchungsanfrage ist eingegangen. Wir melden uns zur Bestätigung Ihrer Fahrt.\nAnfragenummer: ${reference}\n\nHinweis: Die Fahrt gilt erst nach unserer ausdrücklichen Bestätigung als gebucht.\n\n${tripText(b)}\n\nRückfragen: ${company.phone.display} · ${company.email}\n\n${company.legalName}, Inhaber ${company.owner}, ${company.address.street}, ${company.address.postalCode} ${company.address.city}`,
+    text: `Vielen Dank, ${b.firstName} ${b.lastName}.\n\nIhre Buchungsanfrage ist eingegangen. Wir melden uns zur Bestätigung Ihrer Fahrt.\nAnfragenummer: ${reference}\n\nHinweis: Die Fahrt gilt erst nach unserer ausdrücklichen Bestätigung als gebucht.\n\n${tripText(b, true)}\n\nRückfragen: ${company.phone.display} · ${company.email}\n\n${company.legalName}, Inhaber ${company.owner}, ${company.address.street}, ${company.address.postalCode} ${company.address.city}`,
   };
 }
 
@@ -188,7 +193,7 @@ export function bookingPaidCustomerMail(b: PaidBooking) {
     subject: `Buchungsbestätigung ${b.reference} – DEENO`,
     html: layout({
       preheader: "Ihre Zahlung ist eingegangen – Ihre Fahrt ist gebucht.",
-      title: `Ihre Fahrt ist gebucht, ${escapeHtml(b.firstName)} ${escapeHtml(b.lastName)}.`,
+      title: `Ihre Fahrt ist gebucht, ${b.firstName} ${b.lastName}.`, // layout() escaped den Titel
       intro: `Vielen Dank für Ihre Zahlung. Hiermit bestätigen wir Ihre Buchung <strong style="color:${C.gold};letter-spacing:1px;">${escapeHtml(b.reference)}</strong>. Die Zahlungsquittung erhalten Sie separat von unserem Zahlungsdienstleister Stripe.`,
       body: `${section("Ihre Buchung")}${rows(list)}<p style="font-size:14px;line-height:1.6;margin:22px 0 0;color:${C.ivory};">Fragen oder Änderungen? Antworten Sie auf diese E-Mail oder rufen Sie uns an: <a href="${telHref}" style="color:${C.gold};text-decoration:none;">${escapeHtml(company.phone.display)}</a>.</p>`,
     }),
@@ -202,5 +207,36 @@ export function bookingPaidOperatorMail(b: PaidBooking) {
     subject: `BEZAHLT: Buchung ${b.reference} – ${formatDateDe(b.pickupDate)}, ${b.pickupTime} Uhr`,
     html: layout({ preheader: `Zahlung eingegangen für ${b.reference}`, title: "Online-Zahlung eingegangen", intro: "Die folgende Buchung wurde online bezahlt und ist damit verbindlich gebucht.", body: rows(list) }),
     text: `Online-Zahlung eingegangen\n\n${list.map(([k, v]) => `${k}: ${v}`).join("\n")}`,
+  };
+}
+
+/* ───────────── Bestätigung nach Preisabsprache (Betreiber → Kunde) ───────────── */
+
+export type ConfirmedBooking = Omit<PaidBooking, "amountPaidCents" | "email" | "phone"> & { returnDate?: string | null; returnTime?: string | null };
+
+export function bookingConfirmedCustomerMail(b: ConfirmedBooking, priceText: string) {
+  const list: [string, string | undefined][] = [
+    ["Auftragsnummer", b.reference],
+    ["Fahrtart", tripTypeLabels[b.tripType]],
+    ["Abholung", b.pickupAddress],
+    ["Ziel", b.dropoffAddress ?? "nach Absprache"],
+    ["Datum / Uhrzeit", `${formatDateDe(b.pickupDate)}, ${b.pickupTime} Uhr`],
+    ["Rückfahrt", b.tripType === "ROUND_TRIP" && b.returnDate ? `${formatDateDe(b.returnDate)}, ${b.returnTime} Uhr` : undefined],
+    ["Fahrzeugklasse", vehicleLabel(b.vehicleClass)],
+    ["Personen", String(b.passengers)],
+    ["Vereinbarter Fahrpreis", priceText],
+  ];
+  return {
+    subject: `Fahrtbestätigung ${b.reference} – DEENO`,
+    html: layout({
+      preheader: `Ihre Fahrt ${b.reference} ist bestätigt.`,
+      title: `Ihre Fahrt ist bestätigt, ${b.firstName} ${b.lastName}.`, // layout() escaped den Titel
+      intro: `Wie besprochen bestätigen wir Ihre Fahrt mit der Auftragsnummer <strong style="color:${C.gold};letter-spacing:1px;">${escapeHtml(b.reference)}</strong> zum vereinbarten Fahrpreis von <strong style="color:${C.gold};">${escapeHtml(priceText)}</strong>.`,
+      body: `${section("Ihre Fahrt")}${rows(list)}<p style="font-size:14px;line-height:1.6;margin:22px 0 0;color:${C.ivory};">Fragen oder Änderungen? Antworten Sie auf diese E-Mail oder rufen Sie uns an: <a href="${telHref}" style="color:${C.gold};text-decoration:none;">${escapeHtml(company.phone.display)}</a>.</p>`,
+    }),
+    text: `Ihre Fahrt ist bestätigt.\n\n${list
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join("\n")}\n\nRückfragen: ${company.phone.display} · ${company.email}`,
   };
 }

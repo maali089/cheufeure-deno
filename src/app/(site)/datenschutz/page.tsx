@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function DatenschutzPage() {
   return (
-    <LegalPage eyebrow="Rechtliches" title="Datenschutzerklärung">
+    <LegalPage eyebrow="Rechtliches" title={"Datenschutz­erklärung"}>
       <LegalReview>
         Diese Datenschutzerklärung beschreibt die technische Umsetzung der Website. Sie ist vor Veröffentlichung fachlich (z. B. durch eine Rechtsberatung) zu prüfen und an die
         tatsächlich eingesetzten Anbieter, Verträge und Löschfristen anzupassen.
@@ -58,10 +58,14 @@ export default function DatenschutzPage() {
           ggf. durchzuführen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (vorvertragliche Maßnahmen bzw. Vertragserfüllung).
         </p>
         <p>
-          Zum Schutz vor Missbrauch wird Ihre IP-Adresse kurzzeitig im Arbeitsspeicher verarbeitet, um die Anzahl der Anfragen zu begrenzen; sie wird nicht in der Datenbank
-          gespeichert (Art. 6 Abs. 1 lit. f DSGVO).
+          Zum Schutz vor Missbrauch begrenzen wir die Anzahl der Anfragen. Dazu werden Ihre IP-Adresse und – für Bestätigungs-E-Mails – Ihre E-Mail-Adresse nur in
+          pseudonymisierter Form (als nicht umkehrbarer Hashwert) zusammen mit einem Zähler gespeichert und automatisch gelöscht, in der Regel nach zwei Tagen (Art. 6 Abs. 1
+          lit. f DSGVO).
         </p>
-        <LegalReview>Datenbank-Anbieter (Name, Sitz, Serverstandort, Auftragsverarbeitungsvertrag) ergänzen.</LegalReview>
+        <LegalReview>
+          Datenbank-Anbieter ergänzen – technisch eingesetzt: Supabase (PostgreSQL), Serverstandort Irland (AWS eu-west-1). Anbieter-Anschrift, Auftragsverarbeitungsvertrag und
+          ggf. Drittlandbezug rechtlich prüfen.
+        </LegalReview>
       </LegalSection>
 
       <LegalSection title="5. Kontaktformular, E-Mail und Telefon">
@@ -107,6 +111,16 @@ export default function DatenschutzPage() {
           wird WhatsApp (WhatsApp Ireland Limited, ein Unternehmen der Meta-Gruppe) geöffnet; ein vorbereiteter Nachrichtentext wird nur versendet, wenn Sie dies in WhatsApp selbst
           bestätigen. Für die Verarbeitung innerhalb von WhatsApp gelten die Datenschutzbestimmungen von WhatsApp.
         </p>
+        <p>
+          Nach Eingang einer Buchungsanfrage kontaktieren wir Sie zur Abstimmung des Fahrpreises und zur Bestätigung der Fahrt telefonisch oder über WhatsApp unter der von Ihnen
+          angegebenen Telefonnummer. Dabei übermitteln wir die für die Fahrt nötigen Angaben (Auftragsnummer, Datum, Uhrzeit, Strecke, Fahrzeug, vereinbarter Preis). Rechtsgrundlage
+          ist die Durchführung vorvertraglicher Maßnahmen auf Ihre Anfrage (Art. 6 Abs. 1 lit. b DSGVO). Wenn Sie keine Kontaktaufnahme über WhatsApp wünschen, teilen Sie uns das
+          bitte mit – wir melden uns dann telefonisch oder per E-Mail.
+        </p>
+        <LegalReview>
+          Kontaktaufnahme per WhatsApp durch DEENO (WhatsApp/WhatsApp Business, Meta): Rechtsgrundlage, Drittlandbezug, Auftragsverarbeitung bzw. gemeinsame Verantwortlichkeit und
+          ob eine ausdrückliche Einwilligung erforderlich ist, rechtlich prüfen lassen.
+        </LegalReview>
       </LegalSection>
 
       <LegalSection title="9. Cookies und lokale Speicherung">

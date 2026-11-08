@@ -1,9 +1,25 @@
 import "server-only";
 import { NextResponse } from "next/server";
 
-export function clientIp(req: Request): string {
-  const fwd = req.headers.get("x-forwarded-for");
-  return (fwd?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown").slice(0, 64);
+/**
+ * Client-IP für Rate-Limits. Auf Vercel wird X-Forwarded-For von der Plattform gesetzt
+ * bzw. überschrieben und ist daher vertrauenswürdig. Bei anderem Hosting muss ein
+ * vorgelagerter Proxy diesen Header ebenfalls überschreiben.
+ */
+export function clientIpFromHeaders(h: Headers): string {
+  const fwd = h.get("x-forwarded-for");
+  return (fwd?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown").slice(0, 64);
+}
+
+export const clientIp = (req: Request) => clientIpFromHeaders(req.headers);
+
+/**
+ * Für GET-Endpunkte, die kostenpflichtige Dienste auslösen (Google Places):
+ * Browser senden Sec-Fetch-Site – Aufrufe von fremden Websites werden abgelehnt.
+ */
+export function isCrossSiteBrowserRequest(req: Request): boolean {
+  const site = req.headers.get("sec-fetch-site");
+  return site !== null && site !== "same-origin" && site !== "none";
 }
 
 /** Lehnt Cross-Site-POSTs ab (Origin muss zum Host passen). */
@@ -19,6 +35,8 @@ export function isSameOrigin(req: Request): boolean {
 }
 
 export async function readJson(req: Request, maxBytes = 20_000): Promise<unknown> {
+  // Nur JSON annehmen: HTML-Formulare fremder Seiten können diesen Typ nicht ohne CORS-Preflight senden
+  if (!(req.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) throw new PayloadError("Ungültiges Datenformat.");
   const len = Number(req.headers.get("content-length") ?? 0);
   if (len > maxBytes) throw new PayloadError("Anfrage ist zu groß.");
   const text = await req.text();

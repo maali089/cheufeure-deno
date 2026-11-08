@@ -8,7 +8,7 @@ export function LegalPage({ eyebrow, title, children, updated }: { eyebrow: stri
           <p className="eyebrow mb-6 flex items-center gap-4">
             <span className="gold-rule w-10" aria-hidden /> {eyebrow}
           </p>
-          <h1 className="display text-[2.6rem] sm:text-5xl md:text-6xl">{title}</h1>
+          <h1 className="display text-[2.6rem] [overflow-wrap:anywhere] sm:text-5xl md:text-6xl">{title}</h1>
           {updated && <p className="mt-6 text-sm text-mist">Stand: {updated}</p>}
         </header>
         <div className="legal mt-14 max-w-3xl space-y-12 text-[0.98rem] leading-relaxed text-ivory/80">{children}</div>

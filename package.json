@@ -14,6 +14,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:local": "node scripts/local-db.mjs",
     "admin:hash": "node scripts/hash-password.mjs",
+    "admin:totp": "node scripts/totp-secret.mjs",
     "test:unit": "playwright test --project=unit",
     "test:e2e": "playwright test --project=desktop --project=mobile",
     "postinstall": "prisma generate",

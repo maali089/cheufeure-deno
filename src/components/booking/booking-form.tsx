@@ -24,6 +24,7 @@ import {
   WhatsappIcon,
 } from "@/components/icons";
 import { PRESELECT_EVENT, type PreselectDetail } from "@/components/ui/preselect";
+import { TurnstileWidget, isTurnstileActive, useTurnstile } from "@/components/ui/turnstile";
 import { company, telHref } from "@/config/company";
 import type { VehicleSlug } from "@/config/fleet";
 import { berlinNow, formatDateDe } from "@/lib/datetime";
@@ -158,6 +159,7 @@ export function BookingForm({ vehicles, placesEnabled, instanceId = "inline" }: 
   const [maxStep, setMaxStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const captcha = useTurnstile();
   const anchorId = useId();
   const [offers, setOffers] = useState<VehicleOfferView[] | null>(null);
   const [offersLoading, setOffersLoading] = useState(false);
@@ -312,10 +314,15 @@ export function BookingForm({ vehicles, placesEnabled, instanceId = "inline" }: 
     }
     setSubmitting(true);
     try {
+      const turnstileToken = await captcha.waitForToken();
+      if (isTurnstileActive && !turnstileToken) {
+        setFormError("Die Sicherheitsprüfung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut oder rufen Sie uns an:");
+        return;
+      }
       const res = await fetch("/api/booking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, durationHours: values.tripType === "HOURLY" ? values.durationHours : undefined, payNow: selectedOffer?.payable === true }),
+        body: JSON.stringify({ ...values, durationHours: values.tripType === "HOURLY" ? values.durationHours : undefined, payNow: selectedOffer?.payable === true, turnstileToken: turnstileToken || undefined }),
       });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; reference?: string; customerMail?: string; checkoutUrl?: string; paymentError?: boolean; message?: string; fieldErrors?: Record<string, string> };
       if (res.ok && json.ok && json.reference) {
@@ -335,6 +342,7 @@ export function BookingForm({ vehicles, placesEnabled, instanceId = "inline" }: 
         if (first) goTo(stepOfField(first));
       }
       setFormError(json.message ?? "Die Anfrage konnte nicht gesendet werden. Bitte versuchen Sie es erneut.");
+      captcha.reset(); // Turnstile-Tokens sind nur einmal gültig
     } catch {
       setFormError("Keine Verbindung. Bitte prüfen Sie Ihre Internetverbindung oder rufen Sie uns an.");
     } finally {
@@ -417,6 +425,12 @@ export function BookingForm({ vehicles, placesEnabled, instanceId = "inline" }: 
               {step === 3 && <SummaryStep vehicles={vehicles} onEdit={goTo} offer={selectedOffer} />}
             </motion.div>
           </AnimatePresence>
+
+          {step === 3 && isTurnstileActive && (
+            <div className="mt-8">
+              <TurnstileWidget action="booking" onToken={captcha.onToken} resetKey={captcha.resetKey} />
+            </div>
+          )}
 
           {formError && (
             <div role="alert" className="mt-8 border border-error/40 bg-error/[0.06] px-5 py-4 text-sm leading-relaxed text-ivory">
@@ -857,10 +871,10 @@ function CustomerStep() {
           </span>
           <span className="text-sm leading-relaxed text-ivory/75">
             Ich habe die{" "}
-            <Link href="/datenschutz" target="_blank" className="text-gold underline-offset-4 hover:underline">
+            <Link href="/datenschutz" target="_blank" rel="noopener" className="text-gold underline-offset-4 hover:underline">
               Datenschutzhinweise
             </Link>{" "}
-            zur Kenntnis genommen. Meine Angaben werden ausschließlich zur Bearbeitung dieser Anfrage verwendet.
+            zur Kenntnis genommen. Meine Angaben werden ausschließlich zur Bearbeitung dieser Anfrage verwendet; zur Preisabsprache meldet sich DEENO telefonisch oder per WhatsApp unter der angegebenen Nummer.
           </span>
         </label>
         {errors.privacy?.message && (

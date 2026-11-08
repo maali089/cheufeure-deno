@@ -34,7 +34,7 @@ test.describe("Stripe-Webhook", () => {
       headers: { "x-forwarded-for": randomIp() },
       data: {
         tripType: "ONE_WAY", pickupAddress: "Marienplatz 1, München", dropoffAddress: "Flughafen München", stops: [], pickupDate: futureDate(12), pickupTime: "09:00",
-        passengers: 1, luggage: 1, vehicleClass: "first", firstName: "Zahl", lastName: "Test", email: "zahl@example.com", phone: "+49 170 1111111", privacy: true, website: "", startedAt: Date.now() - 20000,
+        passengers: 1, luggage: 1, vehicleClass: "first", firstName: "Zahl", lastName: "Test", email: `zahl+${Date.now()}@example.com`, phone: "+49 170 1111111", privacy: true, website: "", startedAt: Date.now() - 20000,
       },
     });
     reference = (await res.json()).reference;
@@ -91,7 +91,7 @@ test.describe("Stripe-Webhook", () => {
       headers: { "x-forwarded-for": randomIp() },
       data: {
         tripType: "ONE_WAY", pickupAddress: "Marienplatz 1, München", dropoffAddress: "Flughafen München", stops: [], pickupDate: futureDate(12), pickupTime: "10:00",
-        passengers: 1, luggage: 1, vehicleClass: "first", firstName: "Kein", lastName: "Preis", email: "kein@example.com", phone: "+49 170 2222222", privacy: true, website: "", startedAt: Date.now() - 20000, payNow: true,
+        passengers: 1, luggage: 1, vehicleClass: "first", firstName: "Kein", lastName: "Preis", email: `kein+${Date.now()}@example.com`, phone: "+49 170 2222222", privacy: true, website: "", startedAt: Date.now() - 20000, payNow: true,
       },
     });
     const json = await res.json();

@@ -49,7 +49,7 @@ test.describe("Schwebender Buchungsbutton & Buchungsfenster", () => {
     await d.getByRole("button", { name: "Weiter", exact: true }).click();
     await d.locator("#firstName").fill("Dialog");
     await d.locator("#lastName").fill("Test");
-    await d.locator("#email").fill("dialog@example.com");
+    await d.locator("#email").fill(`dialog+${Date.now()}@example.com`);
     await d.locator("#phone").fill("+49 170 7654321");
     await d.locator('label[for="privacy"]').click();
     await d.getByRole("button", { name: "Weiter", exact: true }).click();

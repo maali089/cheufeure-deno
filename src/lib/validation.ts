@@ -14,7 +14,7 @@ export const tripTypeLabels: Record<TripTypeValue, string> = {
   HOURLY: "Stundenbuchung",
 };
 
-export const bookingStatuses = ["RECEIVED", "IN_PROGRESS", "CONFIRMED", "REJECTED", "COMPLETED"] as const;
+export const bookingStatuses = ["RECEIVED", "IN_PROGRESS", "CONFIRMED", "REJECTED", "COMPLETED", "CANCELLED"] as const;
 export type BookingStatusValue = (typeof bookingStatuses)[number];
 
 export const bookingStatusLabels: Record<BookingStatusValue, string> = {
@@ -23,6 +23,7 @@ export const bookingStatusLabels: Record<BookingStatusValue, string> = {
   CONFIRMED: "Bestätigt",
   REJECTED: "Abgelehnt",
   COMPLETED: "Abgeschlossen",
+  CANCELLED: "Storniert",
 };
 
 export const contactSubjects = [
@@ -151,6 +152,7 @@ export const customerSchema = z.object({
 export const antiSpamSchema = z.object({
   website: z.string().max(200).optional(), // Honeypot – muss leer bleiben
   startedAt: z.coerce.number().int().positive(),
+  turnstileToken: z.string().max(2048).optional(), // Cloudflare Turnstile (nur wenn aktiviert)
 });
 
 export const tripStepSchema = tripSchema.superRefine(tripRules);

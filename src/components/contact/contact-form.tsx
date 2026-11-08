@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useForm, type FieldPath } from "react-hook-form";
 import { Field } from "@/components/booking/fields";
 import { ArrowRightIcon, CheckIcon } from "@/components/icons";
+import { TurnstileWidget, isTurnstileActive, useTurnstile } from "@/components/ui/turnstile";
 import { company, mailHref } from "@/config/company";
 import { contactSchema, contactSubjects } from "@/lib/validation";
 
@@ -37,6 +38,7 @@ export function ContactForm() {
   });
   const [result, setResult] = useState<Result>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const captcha = useTurnstile();
 
   useEffect(() => setValue("startedAt", now()), [setValue]);
 
@@ -48,7 +50,12 @@ export function ContactForm() {
       return;
     }
     try {
-      const res = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
+      const turnstileToken = await captcha.waitForToken();
+      if (isTurnstileActive && !turnstileToken) {
+        setFormError("Die Sicherheitsprüfung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.");
+        return;
+      }
+      const res = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, turnstileToken: turnstileToken || undefined }) });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; delivery?: string; message?: string; fieldErrors?: Record<string, string> };
       if (res.ok && json.ok) {
         setResult(json.delivery === "sent" ? { kind: "sent" } : { kind: "stored" });
@@ -57,6 +64,7 @@ export function ContactForm() {
       }
       if (json.fieldErrors) for (const [k, m] of Object.entries(json.fieldErrors)) setError(k as FieldPath<ContactValues>, { message: m });
       setFormError(json.message ?? "Ihre Nachricht konnte nicht gesendet werden.");
+      captcha.reset();
     } catch {
       setFormError("Keine Verbindung. Bitte versuchen Sie es erneut.");
     }
@@ -123,7 +131,7 @@ export function ContactForm() {
                 </span>
                 <span className="text-sm leading-relaxed text-ivory/75">
                   Ich habe die{" "}
-                  <Link href="/datenschutz" target="_blank" className="text-gold underline-offset-4 hover:underline">
+                  <Link href="/datenschutz" target="_blank" rel="noopener" className="text-gold underline-offset-4 hover:underline">
                     Datenschutzhinweise
                   </Link>{" "}
                   zur Kenntnis genommen. Meine Angaben werden zur Beantwortung meiner Anfrage verwendet.
@@ -131,6 +139,11 @@ export function ContactForm() {
               </label>
               {errors.privacy?.message && <p className="field-error ml-10">{errors.privacy.message}</p>}
             </div>
+            {isTurnstileActive && (
+              <div className="md:col-span-2">
+                <TurnstileWidget action="contact" onToken={captcha.onToken} resetKey={captcha.resetKey} />
+              </div>
+            )}
             {formError && (
               <div role="alert" className="border border-error/40 bg-error/[0.06] px-5 py-4 text-sm text-ivory md:col-span-2">
                 {formError} Alternativ erreichen Sie uns direkt unter{" "}

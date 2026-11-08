@@ -4,8 +4,12 @@ import { vehicleLabel } from "@/config/fleet";
 import { formatDateDe, formatDateTimeDe } from "@/lib/datetime";
 import { requireAdmin } from "@/lib/server/auth";
 import { db } from "@/lib/server/db";
-import { bookingStatusLabels, bookingStatuses, tripTypeLabels } from "@/lib/validation";
-import { saveAdminNotes, updateBookingStatus } from "../../../actions";
+import { mailConfig } from "@/lib/mail/transport";
+import { formatEuro } from "@/lib/price";
+import { bookingStatusLabels, tripTypeLabels } from "@/lib/validation";
+import { operatorConfirmationMessage, operatorOfferMessage, phoneToWhatsapp, whatsappChatHref } from "@/lib/whatsapp";
+import { saveAdminNotes } from "../../../actions";
+import { BookingActions } from "./booking-actions";
 import { StatusBadge } from "../../status-badge";
 
 export const metadata = { title: "Anfrage" };
@@ -29,7 +33,8 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     ["Flugnummer", b.flightNumber],
     ["Hinweise", b.tripNotes],
     ["Fahrzeugklasse", vehicleLabel(b.vehicleClass)],
-    ["Preis (serverseitig)", b.quotedPrice ? `${Number(b.quotedPrice).toFixed(2)} € (${b.pricingSource ?? "–"})` : null],
+    ["Vereinbarter Preis", b.agreedPrice ? formatEuro(b.agreedPrice) : "noch nicht vereinbart"],
+    ["Preis (Online-Regeln)", b.quotedPrice ? `${Number(b.quotedPrice).toFixed(2)} € (${b.pricingSource ?? "–"})` : null],
     ["Zahlung", { NOT_REQUIRED: "keine Online-Zahlung", PENDING: "ausstehend (Checkout gestartet)", PAID: `bezahlt${b.amountPaidCents ? ` – ${(b.amountPaidCents / 100).toFixed(2)} €` : ""}`, FAILED: "fehlgeschlagen", EXPIRED: "abgelaufen", REFUNDED: "erstattet" }[b.paymentStatus]],
     ["Strecke (berechnet)", b.distanceMeters ? `${(b.distanceMeters / 1000).toFixed(1)} km · ${Math.round((b.durationSeconds ?? 0) / 60)} Min.` : null],
   ];
@@ -41,7 +46,13 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     ["Besondere Wünsche", b.specialRequests],
     ["Datenschutzhinweis bestätigt", formatDateTimeDe(b.privacyAckAt)],
   ];
-  const phoneDigits = b.phone.replace(/[^\d+]/g, "").replace(/^00/, "+").replace(/^0/, "+49");
+  const wa = phoneToWhatsapp(b.phone);
+  const telTarget = wa ? `+${wa}` : b.phone.replace(/[^\d+]/g, "");
+  const priceText = b.agreedPrice ? formatEuro(b.agreedPrice) : null;
+  const offerHref = wa ? whatsappChatHref(wa, operatorOfferMessage(b)) : null;
+  const confirmationHref = wa && priceText ? whatsappChatHref(wa, operatorConfirmationMessage(b, priceText)) : null;
+  const mail = mailConfig();
+  const mailConfigured = mail.transport === "resend" && Boolean(process.env.RESEND_API_KEY && mail.from);
   const mailSubject = encodeURIComponent(`Ihre Anfrage ${b.reference} – DEENO Chauffeurservice`);
   const mailBody = encodeURIComponent(
     `Guten Tag ${b.firstName} ${b.lastName},\n\nvielen Dank für Ihre Anfrage ${b.reference} für den ${formatDateDe(b.pickupDate)} um ${b.pickupTime} Uhr.\n\n`,
@@ -74,7 +85,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 {block.data
                   .filter(([, v]) => v)
                   .map(([k, v]) => (
-                    <div key={k} className="grid grid-cols-[11rem_1fr] gap-4 py-2.5">
+                    <div key={k} className="grid gap-1 py-2.5 sm:grid-cols-[11rem_1fr] sm:gap-4">
                       <dt className="text-xs uppercase tracking-[0.12em] text-mist">{k}</dt>
                       <dd className="whitespace-pre-line break-words">{v}</dd>
                     </div>
@@ -86,32 +97,29 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             <a href={`mailto:${b.email}?subject=${mailSubject}&body=${mailBody}`} className="btn btn-ghost min-h-11 px-4">
               E-Mail an Kunden
             </a>
-            <a href={`tel:${phoneDigits}`} className="btn btn-ghost min-h-11 px-4">
+            <a href={`tel:${telTarget}`} className="btn btn-ghost min-h-11 px-4">
               Anrufen
             </a>
-            <a href={`https://wa.me/${phoneDigits.replace("+", "")}`} target="_blank" rel="noopener noreferrer" className="btn btn-ghost min-h-11 px-4">
-              WhatsApp
-            </a>
+            {offerHref && (
+              <a href={offerHref} target="_blank" rel="noopener noreferrer" className="btn btn-ghost min-h-11 px-4">
+                WhatsApp
+              </a>
+            )}
           </div>
         </div>
 
         <aside className="space-y-8">
-          <section className="border border-white/[0.08] bg-coal p-6">
-            <h2 className="eyebrow mb-4">Status ändern</h2>
-            <form action={updateBookingStatus} className="space-y-4">
-              <input type="hidden" name="id" value={b.id} />
-              <select name="status" defaultValue={b.status} className="field" aria-label="Status">
-                {bookingStatuses.map((s) => (
-                  <option key={s} value={s}>
-                    {bookingStatusLabels[s]}
-                  </option>
-                ))}
-              </select>
-              <textarea name="note" rows={2} className="field" placeholder="Notiz zur Änderung (optional)" aria-label="Notiz" />
-              <button className="btn btn-gold w-full min-h-11">Speichern</button>
-            </form>
-            <p className="mt-3 text-xs text-mist">Hinweis: Der Kunde wird nicht automatisch benachrichtigt. Bitte bestätigen Sie die Fahrt persönlich.</p>
-          </section>
+          <BookingActions
+            id={b.id}
+            status={b.status}
+            agreedPriceInput={b.agreedPrice ? Number(b.agreedPrice).toFixed(2).replace(".", ",") : ""}
+            agreedPriceText={priceText}
+            offerHref={offerHref}
+            confirmationHref={confirmationHref}
+            email={b.email}
+            mailConfigured={mailConfigured}
+            confirmationSent={Boolean(b.confirmationSentAt)}
+          />
 
           <section className="border border-white/[0.08] bg-coal p-6">
             <h2 className="eyebrow mb-4">Interne Notizen</h2>

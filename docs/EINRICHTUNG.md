@@ -10,7 +10,7 @@ npm run build && npm start   # http://localhost:3000
 ```
 
 `.env.local` ist für die lokale Entwicklung vorbereitet (E-Mails werden dort nur in der Konsole ausgegeben, **nicht** versendet).
-Lokaler Admin-Zugang: `/admin` · Benutzer `deeno` · Passwort `deeno-local-admin-2026` (nur lokal – für Produktion neu erzeugen!).
+Lokaler Admin-Zugang: `/admin` · Benutzer `deeno` · Passwort `deeno-local-admin-2026` · 2FA-Code aus `ADMIN_TOTP_SECRET` in `.env.local` (nur lokal – für Produktion neu erzeugen!). Sicherheitsdetails und Deployment-Schritte: `SECURITY_AUDIT.md`.
 
 ## Tests
 
@@ -33,6 +33,8 @@ npm run test:visual      # Screenshots nach test-results/visual
 | Stripe (stripe.com) | Online-Zahlung (Karte, Apple Pay, Google Pay über Stripe Checkout) | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | **fehlt** (lokal nur Dummy-Werte für Webhook-Tests) |
 | Preisregeln | Festpreise – Voraussetzung für Online-Zahlung | `PRICING_RULES_JSON` | **fehlt** – von DEENO festzulegen |
 | Admin-Zugang | `/admin` | `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH` (`npm run admin:hash -- "Passwort"`), `ADMIN_SESSION_SECRET` | neu erzeugen |
+| 2FA (Pflicht in Produktion) | `/admin` | `ADMIN_TOTP_SECRET` (`npm run admin:totp`, in Authenticator-App eintragen) | neu erzeugen |
+| Bot-Schutz (empfohlen) | Formulare | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Cloudflare Turnstile) | optional |
 
 Ohne `RESEND_API_KEY` werden Anfragen trotzdem gespeichert; die Website behauptet dann **keinen** erfolgreichen E-Mail-Versand.
 

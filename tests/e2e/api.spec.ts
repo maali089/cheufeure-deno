@@ -13,7 +13,7 @@ const valid = () => ({
   vehicleClass: "business",
   firstName: "API",
   lastName: "Test",
-  email: "api@example.com",
+  email: `api+${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`,
   phone: "+49 170 0000000",
   privacy: true,
   website: "",
@@ -79,7 +79,8 @@ test.describe("Serverseitige Validierung & Sicherheit", () => {
       expect([302, 307, 308]).toContain(res.status());
       expect(res.headers()["location"]).toContain("/admin/login");
     }
-    const forged = await request.get("/admin", { maxRedirects: 0, headers: { cookie: "deeno_admin=eyJ1IjoiYWRtaW4iLCJleHAiOjk5OTk5OTk5OTl9.fake" } });
+    const forgedValue = "eyJ1IjoiYWRtaW4iLCJleHAiOjk5OTk5OTk5OTl9.fake";
+    const forged = await request.get("/admin", { maxRedirects: 0, headers: { cookie: `deeno_admin=${forgedValue}; __Host-deeno_admin=${forgedValue}` } });
     expect([302, 307, 308]).toContain(forged.status());
   });
 });
