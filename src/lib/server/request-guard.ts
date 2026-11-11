@@ -14,7 +14,7 @@ export function clientIpFromHeaders(h: Headers): string {
 export const clientIp = (req: Request) => clientIpFromHeaders(req.headers);
 
 /**
- * Für GET-Endpunkte, die kostenpflichtige Dienste auslösen (Google Places):
+ * Für GET-Endpunkte, die externe Dienste auslösen (Adresssuche):
  * Browser senden Sec-Fetch-Site – Aufrufe von fremden Websites werden abgelehnt.
  */
 export function isCrossSiteBrowserRequest(req: Request): boolean {

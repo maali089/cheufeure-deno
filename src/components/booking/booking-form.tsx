@@ -367,7 +367,9 @@ export function BookingForm({ vehicles, placesEnabled, instanceId = "inline" }: 
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-10 @5xl:grid-cols-12 @5xl:gap-14" aria-label="Buchungsanfrage">
         {/* Fortschritt */}
         <aside className="@5xl:col-span-3">
-          <ol className="grid grid-cols-4 gap-2 @5xl:sticky @5xl:top-32 @5xl:grid-cols-1 @5xl:gap-0" aria-label="Fortschritt">
+          {/* Schrittliste und Telefonhinweis haften gemeinsam – sonst schiebt sich die Liste beim Scrollen über den Hinweis */}
+          <div className="@5xl:sticky @5xl:top-32">
+          <ol className="grid grid-cols-4 gap-2 @5xl:grid-cols-1 @5xl:gap-0" aria-label="Fortschritt">
             {STEPS.map((label, i) => {
               const done = i < step;
               const current = i === step;
@@ -407,6 +409,7 @@ export function BookingForm({ vehicles, placesEnabled, instanceId = "inline" }: 
             <a href={telHref} className="mt-2 block font-display text-2xl text-ivory hover:text-gold">
               {company.phone.display}
             </a>
+          </div>
           </div>
         </aside>
 

@@ -1,15 +1,23 @@
 import "server-only";
 
 /**
- * Kartenanbieter: Google Maps Platform (Places API (New) + Routes API).
- * Alle Aufrufe laufen über den Server – der API-Schlüssel und die IP-Adresse
- * des Besuchers werden nicht an den Browser bzw. an Google weitergegeben.
+ * Kartenanbieter: OpenStreetMap-Daten über freie Open-Source-Dienste, ohne API-Schlüssel.
+ *  - Photon (https://photon.komoot.io) für Adressvorschläge und Geokodierung
+ *  - OSRM (https://project-osrm.org) für Distanz und Fahrzeit
+ * Alle Aufrufe laufen über den Server – die IP-Adresse des Besuchers wird nicht
+ * an die Dienste weitergegeben. Die öffentlichen Instanzen sind für geringe Last
+ * gedacht (Fair Use); über PHOTON_URL / OSRM_URL lassen sich eigene Instanzen nutzen.
  */
-const key = () => process.env.GOOGLE_MAPS_API_KEY || "";
-export const isPlacesConfigured = () => key().length > 0;
-export const isRouteCalculationEnabled = () => isPlacesConfigured() && process.env.ROUTE_CALCULATION_ENABLED === "true";
+const base = (value: string | undefined, fallback: string) => (value?.trim() || fallback).replace(/\/+$/, "");
+const photonUrl = () => base(process.env.PHOTON_URL, "https://photon.komoot.io");
+const osrmUrl = () => base(process.env.OSRM_URL, "https://router.project-osrm.org");
+const HEADERS = { "User-Agent": "deeno-chauffeur-website" };
+
+export const isPlacesConfigured = () => process.env.ADDRESS_AUTOCOMPLETE_ENABLED === "true";
+export const isRouteCalculationEnabled = () => process.env.ROUTE_CALCULATION_ENABLED === "true";
 
 export interface PlaceSuggestion {
+  /** Koordinaten des Vorschlags im Format "lat,lon" */
   placeId: string;
   label: string;
   main: string;
@@ -17,57 +25,81 @@ export interface PlaceSuggestion {
 }
 
 // Standort-Bias: Geschäftssitz Maisach (keine Einschränkung, nur Priorisierung)
-const BIAS = { latitude: 48.2167, longitude: 11.2667, radius: 50000 };
+const BIAS = { latitude: 48.2167, longitude: 11.2667 };
 
-export async function autocompletePlaces(input: string, sessionToken: string): Promise<PlaceSuggestion[]> {
-  const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key() },
-    body: JSON.stringify({
-      input,
-      sessionToken,
-      languageCode: "de",
-      regionCode: "de",
-      locationBias: { circle: { center: { latitude: BIAS.latitude, longitude: BIAS.longitude }, radius: BIAS.radius } },
-    }),
-    signal: AbortSignal.timeout(4000),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`Places API: HTTP ${res.status}`);
-  const json = (await res.json()) as {
-    suggestions?: { placePrediction?: { placeId: string; text?: { text: string }; structuredFormat?: { mainText?: { text: string }; secondaryText?: { text: string } } } }[];
-  };
-  return (json.suggestions ?? [])
-    .map((s) => s.placePrediction)
-    .filter((p): p is NonNullable<typeof p> => !!p?.placeId)
-    .slice(0, 6)
-    .map((p) => ({
-      placeId: p.placeId,
-      label: p.text?.text ?? p.structuredFormat?.mainText?.text ?? "",
-      main: p.structuredFormat?.mainText?.text ?? p.text?.text ?? "",
-      secondary: p.structuredFormat?.secondaryText?.text ?? "",
-    }));
+interface PhotonFeature {
+  geometry?: { coordinates?: [number, number] };
+  properties?: { name?: string; street?: string; housenumber?: string; postcode?: string; city?: string; district?: string; state?: string; country?: string; countrycode?: string };
+}
+
+async function photonSearch(q: string, limit: number, timeoutMs: number): Promise<PhotonFeature[]> {
+  const params = new URLSearchParams({ q, lang: "de", limit: String(limit), lat: String(BIAS.latitude), lon: String(BIAS.longitude) });
+  const res = await fetch(`${photonUrl()}/api?${params}`, { headers: HEADERS, signal: AbortSignal.timeout(timeoutMs), cache: "no-store" });
+  if (!res.ok) throw new Error(`Photon: HTTP ${res.status}`);
+  const json = (await res.json()) as { features?: PhotonFeature[] };
+  return json.features ?? [];
+}
+
+type Coordinate = { lat: number; lon: number };
+
+function coordinateOf(f: PhotonFeature): Coordinate | null {
+  const [lon, lat] = f.geometry?.coordinates ?? [];
+  return validCoordinate(lat, lon) ? { lat: lat!, lon: lon! } : null;
+}
+
+function validCoordinate(lat: number | undefined, lon: number | undefined) {
+  return typeof lat === "number" && typeof lon === "number" && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+}
+
+function toSuggestion(f: PhotonFeature): PlaceSuggestion | null {
+  const c = coordinateOf(f);
+  const p = f.properties;
+  if (!c || !p) return null;
+  const streetLine = [p.street, p.housenumber].filter(Boolean).join(" ");
+  const locality = [p.postcode, p.city ?? p.district ?? p.state].filter(Boolean).join(" ");
+  const country = p.countrycode === "DE" ? undefined : p.country;
+  const main = p.name ?? streetLine;
+  // Ohne Namen ist die Straße schon die Hauptzeile; reine Orte (Stadt = Name) nicht doppelt nennen
+  const secondary = [p.name && streetLine !== p.name ? streetLine : "", locality === main ? "" : locality, country].filter(Boolean).join(", ");
+  if (!main) return null;
+  return { placeId: `${c.lat.toFixed(6)},${c.lon.toFixed(6)}`, label: [main, secondary].filter(Boolean).join(", "), main, secondary };
+}
+
+export async function autocompletePlaces(input: string): Promise<PlaceSuggestion[]> {
+  const seen = new Set<string>();
+  return (await photonSearch(input, 8, 4000))
+    .map(toSuggestion)
+    .filter((s): s is PlaceSuggestion => !!s && !seen.has(s.label) && !!seen.add(s.label))
+    .slice(0, 6);
 }
 
 type Waypoint = { address: string; placeId?: string };
-const wp = (w: Waypoint) => (w.placeId ? { placeId: w.placeId } : { address: w.address });
 
-/** Echte Routenberechnung (Distanz/Dauer). Gibt null zurück, wenn nicht konfiguriert oder fehlgeschlagen. */
+/** Koordinaten aus dem gewählten Vorschlag; sonst wird die frei eingegebene Adresse geokodiert. */
+async function locate(w: Waypoint): Promise<Coordinate | null> {
+  const m = /^(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)$/.exec(w.placeId ?? "");
+  if (m) {
+    const lat = Number(m[1]);
+    const lon = Number(m[2]);
+    if (validCoordinate(lat, lon)) return { lat, lon };
+  }
+  const [first] = await photonSearch(w.address, 1, 4000);
+  return first ? coordinateOf(first) : null;
+}
+
+/** Echte Routenberechnung (Distanz/Dauer). Gibt null zurück, wenn nicht aktiviert oder fehlgeschlagen. */
 export async function computeRoute(origin: Waypoint, destination: Waypoint, stops: Waypoint[] = []) {
   if (!isRouteCalculationEnabled()) return null;
   try {
-    const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key(), "X-Goog-FieldMask": "routes.distanceMeters,routes.duration" },
-      body: JSON.stringify({ origin: wp(origin), destination: wp(destination), intermediates: stops.map(wp), travelMode: "DRIVE", languageCode: "de" }),
-      signal: AbortSignal.timeout(5000),
-      cache: "no-store",
-    });
+    const points = await Promise.all([origin, ...stops, destination].map(locate));
+    if (points.some((p) => !p)) return null;
+    const path = points.map((p) => `${p!.lon},${p!.lat}`).join(";");
+    const res = await fetch(`${osrmUrl()}/route/v1/driving/${path}?overview=false`, { headers: HEADERS, signal: AbortSignal.timeout(5000), cache: "no-store" });
     if (!res.ok) return null;
-    const json = (await res.json()) as { routes?: { distanceMeters?: number; duration?: string }[] };
+    const json = (await res.json()) as { code?: string; routes?: { distance?: number; duration?: number }[] };
     const r = json.routes?.[0];
-    if (!r?.distanceMeters || !r.duration) return null;
-    return { distanceMeters: r.distanceMeters, durationSeconds: Number.parseInt(r.duration, 10) };
+    if (json.code !== "Ok" || !r?.distance || !r.duration) return null;
+    return { distanceMeters: Math.round(r.distance), durationSeconds: Math.round(r.duration) };
   } catch {
     return null;
   }

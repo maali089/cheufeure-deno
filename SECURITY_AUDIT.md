@@ -60,7 +60,7 @@ Keine kritischen Risiken gefunden.
 | Supabase-Schlüssel (anon/service_role) | **nicht im Projekt verwendet** | Kein `@supabase/*`-Paket, kein Schlüssel im Code |
 | E-Mail | Resend (serverseitig) | Betreiber- und Kundenbenachrichtigungen |
 | Zahlung | Stripe Checkout + Webhook | Aktuell deaktiviert (`INSTANT_BOOKING_ENABLED=false`) |
-| Adressen/Routen | Google Places/Routes (serverseitiger Proxy) | Schlüssel nur auf dem Server |
+| Adressen/Routen | Photon + OSRM auf OpenStreetMap-Basis (serverseitiger Proxy) | kein API-Schlüssel nötig |
 | Bot-Schutz | Honeypot + Mindest-Ausfülldauer; **neu:** optional Cloudflare Turnstile | |
 
 ### Angriffsfläche (Endpunkte)
@@ -257,7 +257,7 @@ Es gibt genau ein Admin-Konto aus Umgebungsvariablen, also keine Benutzerverwalt
 | Mass Assignment | Zod-Schemas verwerfen unbekannte Felder; der Datensatz wird explizit zusammengesetzt. ✅ Unit + E2E |
 | IDOR / fremde Anfragen | Keine öffentliche Lese-, Änderungs- oder Löschschnittstelle; Anfragenummer mit ~30 Bit Zufall, Bestätigungsseite ohne Daten. ✅ E2E |
 | CSRF | Origin-Prüfung (API), Next.js-Origin-Prüfung (Server Actions), SameSite=Strict. ✅ E2E |
-| SSRF | Ausgehende Requests nur an feste Hosts (Google, Stripe, Resend, Cloudflare) |
+| SSRF | Ausgehende Requests nur an feste Hosts (Photon, OSRM, Stripe, Resend, Cloudflare) |
 | Open Redirect | Redirects nur auf feste interne Pfade; Stripe-URL wird im Client gegen `https://checkout.stripe.com/` geprüft |
 | E-Mail-Header-Injection | Betreff wird bereinigt, Adressen per Zod validiert. ✅ Unit (CRLF in E-Mail abgelehnt) |
 | Stripe | Signaturprüfung, Idempotenz, Betrags- und Währungsabgleich, Session-ID-Abgleich. ✅ bestehende E2E |
@@ -314,7 +314,7 @@ Keine vorhanden, daher keine Prüfung nötig. Das Repository enthält keinen `su
 | Supabase service_role / secret Key | nicht verwendet | darf nirgends im Projekt oder in Vercel stehen |
 | `DATABASE_URL` / `DIRECT_URL` | nur Server/Build | nicht im Git-Verlauf ✅ |
 | `ADMIN_SESSION_SECRET`, `ADMIN_PASSWORD_HASH`, **`ADMIN_TOTP_SECRET` (neu)** | nur Server | in Vercel pflegen |
-| `STRIPE_*`, `RESEND_API_KEY`, `GOOGLE_MAPS_API_KEY`, **`TURNSTILE_SECRET_KEY` (neu)** | nur Server | in Vercel pflegen |
+| `STRIPE_*`, `RESEND_API_KEY`, **`TURNSTILE_SECRET_KEY` (neu)** | nur Server | in Vercel pflegen |
 | JWT-Konfiguration | nicht relevant (kein Supabase Auth) | – |
 
 **Rotation:** Es gibt keine Hinweise auf kompromittierte Schlüssel (Git-Verlauf sauber, lokale `.env`-Dateien enthalten nur Test- bzw. leere Werte). Eine Pflicht-Rotation ist daher nicht nötig. Empfohlen: Admin-Passwort neu hashen (SEC-10). Hat der Supabase-**service_role**-Key oder das Datenbankpasswort je außerhalb von Vercel/Supabase gelegen (Chat, E-Mail, Dokument), sollten beide rotiert werden (E-9).
@@ -534,7 +534,7 @@ Kein Pflichtschritt (keine Kompromittierung gefunden). Hat das Datenbankpasswort
 
 ### E-10 · (Empfohlen) Externe Dienste
 
-- **Google Cloud** (falls `GOOGLE_MAPS_API_KEY` genutzt wird): API-Key auf Places API (New) und Routes API beschränken, Tages-Quota und Budget-Alarm setzen (SEC-09). Eine IP-Beschränkung ist bei Vercel nicht möglich.
+- **Adresssuche/Routen (Photon, OSRM):** Die öffentlichen Instanzen sind Fair-Use-Dienste ohne Verfügbarkeitsgarantie. Bei höherer Last eigene Instanzen betreiben und über `PHOTON_URL` / `OSRM_URL` einbinden (SEC-09).
 - **Resend:** Die Absenderdomain mit SPF, DKIM und DMARC (`p=quarantine` oder strenger) verifizieren. Schützt vor Spoofing und verbessert die Zustellbarkeit.
 - **Stripe** (bei späterer Aktivierung): Webhook-Endpunkt nur mit den in `.env.example` genannten Ereignissen. Live-Keys nur in Production.
 
@@ -554,7 +554,7 @@ Kein Pflichtschritt (keine Kompromittierung gefunden). Hat das Datenbankpasswort
 | SEC-06 Turnstile | ✅ (mit Testschlüsseln) | ✅ (E-5, optional) | – | ✅ Datenschutzerklärung | |
 | SEC-07 Logs ohne personenbezogene Daten | ✅ | ✅ (E-6) | – | | |
 | SEC-08 Duplikatschutz | ✅ | ✅ (E-6) | – | | |
-| SEC-09 Adress-API nur same-origin | ✅ | ✅ (E-6) | – | ✅ Google-Quota (E-10) | |
+| SEC-09 Adress-API nur same-origin | ✅ | ✅ (E-6) | – | ✅ Fair Use/eigene Instanz (E-10) | |
 | SEC-10 Stärkere Passwort-Hashes | ✅ | ✅ (E-2) | – | | |
 | SEC-11/12 Cookie-Präfix, Content-Type-Prüfung | ✅ | ✅ (E-6) | – | | |
 | SEC-13 CSP `'unsafe-inline'` | | | | | ⚪ bewusst akzeptiert |

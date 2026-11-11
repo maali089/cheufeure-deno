@@ -142,7 +142,6 @@ export function AddressInput({
   const [items, setItems] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  const sessionRef = useRef<string>("");
   const abortRef = useRef<AbortController | null>(null);
   const listId = useId();
   const typedRef = useRef(false);
@@ -155,9 +154,8 @@ export function AddressInput({
       abortRef.current?.abort();
       const ac = new AbortController();
       abortRef.current = ac;
-      if (!sessionRef.current) sessionRef.current = crypto.randomUUID();
       try {
-        const res = await fetch(`/api/places?q=${encodeURIComponent(q)}&s=${sessionRef.current}`, { signal: ac.signal });
+        const res = await fetch(`/api/places?q=${encodeURIComponent(q)}`, { signal: ac.signal });
         const json = (await res.json()) as { suggestions?: Suggestion[] };
         setItems(json.suggestions ?? []);
         setOpen(true);
@@ -175,7 +173,6 @@ export function AddressInput({
     onSelectPlace(s.placeId);
     setOpen(false);
     setItems([]);
-    sessionRef.current = ""; // neue Sitzung für die nächste Suche
   };
 
   const showList = enabled && open && items.length > 0 && value.trim().length >= 3;
@@ -224,7 +221,7 @@ export function AddressInput({
         <ul id={listId} role="listbox" className="absolute inset-x-0 top-full z-30 mt-1 max-h-72 overflow-auto border border-line bg-graphite shadow-2xl shadow-black/60">
           {items.map((s, i) => (
             <li
-              key={s.placeId}
+              key={`${s.placeId}-${i}`}
               id={`${listId}-${i}`}
               role="option"
               aria-selected={i === active}
@@ -239,7 +236,7 @@ export function AddressInput({
             </li>
           ))}
           <li className="px-4 py-2 text-right text-[0.6rem] uppercase tracking-[0.15em] text-mist/70" aria-hidden>
-            Vorschläge: Google
+            © OpenStreetMap-Mitwirkende
           </li>
         </ul>
       )}

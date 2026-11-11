@@ -29,7 +29,7 @@ npm run test:visual      # Screenshots nach test-results/visual
 | PostgreSQL (z. B. Neon, Supabase, Vercel Postgres) | Speicherung der Anfragen | `DATABASE_URL` | **fehlt** |
 | Resend (resend.com) | E-Mail an Betreiber + Eingangsbestätigung an Kunden | `RESEND_API_KEY`, `MAIL_FROM` | **fehlt** |
 | Eigene Domain bei Resend verifizieren | Absenderadresse (nicht @yahoo.com möglich) | `MAIL_FROM` | **fehlt** |
-| Google Maps Platform (Places API New, optional Routes API) | Adress-Autovervollständigung, später Routen | `GOOGLE_MAPS_API_KEY`, `ROUTE_CALCULATION_ENABLED` | optional |
+| OpenStreetMap: Photon (Adresssuche) + OSRM (Routen), kostenlos, kein API-Schlüssel | Adress-Autovervollständigung, Routen | `ADDRESS_AUTOCOMPLETE_ENABLED`, `ROUTE_CALCULATION_ENABLED`, optional `PHOTON_URL`, `OSRM_URL` | optional |
 | Stripe (stripe.com) | Online-Zahlung (Karte, Apple Pay, Google Pay über Stripe Checkout) | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | **fehlt** (lokal nur Dummy-Werte für Webhook-Tests) |
 | Preisregeln | Festpreise – Voraussetzung für Online-Zahlung | `PRICING_RULES_JSON` | **fehlt** – von DEENO festzulegen |
 | Admin-Zugang | `/admin` | `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH` (`npm run admin:hash -- "Passwort"`), `ADMIN_SESSION_SECRET` | neu erzeugen |
@@ -44,7 +44,7 @@ Die Zahlung ist vollständig vorbereitet, aber bewusst **deaktiviert**. Solange 
 
 Voraussetzungen (alle nötig):
 1. `STRIPE_SECRET_KEY` und `STRIPE_WEBHOOK_SECRET` gesetzt. Webhook im Stripe-Dashboard auf `https://<domain>/api/stripe/webhook` mit den Ereignissen `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`.
-2. `PRICING_RULES_JSON` mit von DEENO bestätigten Preisen (Struktur siehe `.env.example`). Streckenpreise zusätzlich nur mit `GOOGLE_MAPS_API_KEY` + `ROUTE_CALCULATION_ENABLED="true"` (echte Routenberechnung, keine Schätzung).
+2. `PRICING_RULES_JSON` mit von DEENO bestätigten Preisen (Struktur siehe `.env.example`). Streckenpreise zusätzlich nur mit `ROUTE_CALCULATION_ENABLED="true"` (echte Routenberechnung, keine Schätzung).
 3. `INSTANT_BOOKING_ENABLED="true"` – nur, wenn DEENO Fahrten ohne manuelle Prüfung verbindlich annehmen kann.
 4. Fahrzeugklasse im Admin unter „Flotte“ als **bestätigt** markiert.
 5. Fahrt mindestens `MIN_LEAD_HOURS` (Standard 24) in der Zukunft.
@@ -63,7 +63,7 @@ Test im Stripe-Testmodus: `sk_test_…`-Schlüssel setzen, `stripe listen --forw
 ## Vor Veröffentlichung von DEENO zu klären
 
 - Impressum: USt-IdNr., PBefG-Genehmigung + zuständige Behörde, ggf. Handelsregister, Erklärung zur Verbraucherschlichtung (auf der Seite markiert).
-- Datenschutz: Anbieter (Hosting, DB, E-Mail, ggf. Google), Löschfristen – fachliche Prüfung.
+- Datenschutz: Anbieter (Hosting, DB, E-Mail, ggf. Photon/OSRM), Löschfristen – fachliche Prüfung.
 - Bestätigung: angebotene Fahrzeuge (im Admin unter „Flotte“ freischalten), Einsatzgebiet, WhatsApp-Nummer.
 - Eigene Fahrzeugfotos (aktuell lizenzfreie Unsplash-Symbolbilder, siehe `/bildnachweise`).
 - Preisregeln, falls später automatische Preise gewünscht (`src/lib/pricing.ts`).

@@ -68,7 +68,7 @@ test.describe("Serverseitige Validierung & Sicherheit", () => {
     expect(json.customerMail).toBe("not_sent");
   });
 
-  test("Adress-API ohne Schlüssel deaktiviert", async ({ request }) => {
+  test("Adress-API ohne Aktivierung deaktiviert", async ({ request }) => {
     const json = await (await request.get("/api/places?q=Marienplatz")).json();
     expect(json.enabled).toBe(false);
   });

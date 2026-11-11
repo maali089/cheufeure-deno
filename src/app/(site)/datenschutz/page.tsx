@@ -98,11 +98,12 @@ export default function DatenschutzPage() {
 
       <LegalSection title="7. Adress-Autovervollständigung">
         <p>
-          Sofern aktiviert, schlägt das Buchungsformular bei der Eingabe von Adressen passende Orte vor. Dazu wird der eingegebene Suchtext über unseren Server an die Google Maps
-          Platform (Google Ireland Limited bzw. Google LLC) übermittelt. Ihre IP-Adresse wird dabei nicht an Google weitergegeben, da die Anfrage von unserem Server aus erfolgt.
-          Optional kann für eine Anfrage die Fahrstrecke (Entfernung und Dauer) berechnet werden. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.
+          Sofern aktiviert, schlägt das Buchungsformular bei der Eingabe von Adressen passende Orte vor. Dazu wird der eingegebene Suchtext über unseren Server an den auf
+          OpenStreetMap-Daten basierenden Suchdienst Photon (komoot GmbH, Potsdam) übermittelt. Ihre IP-Adresse wird dabei nicht weitergegeben, da die Anfrage von unserem Server aus erfolgt.
+          Optional kann für eine Anfrage die Fahrstrecke (Entfernung und Dauer) berechnet werden; dazu werden ausschließlich die Koordinaten der Start-, Zwischen- und Zielorte an den
+          Routingdienst des Open-Source-Projekts OSRM übermittelt. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.
         </p>
-        <LegalReview>Prüfen, ob die Funktion aktiviert wird, und Vertragsgrundlage mit Google (Auftragsverarbeitung / Drittlandübermittlung) ergänzen.</LegalReview>
+        <LegalReview>Prüfen, ob die Funktion aktiviert wird, und Betreiber/Serverstandort der genutzten Photon- und OSRM-Instanzen (öffentlich oder selbst betrieben) ergänzen.</LegalReview>
       </LegalSection>
 
       <LegalSection title="8. WhatsApp">
