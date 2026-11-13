@@ -5,10 +5,10 @@ import { futureDate, randomIp } from "./helpers";
 
 /**
  * Prüft den Stripe-Webhook lokal mit signierten Test-Ereignissen (ohne Stripe-Konto).
- * Voraussetzung: STRIPE_WEBHOOK_SECRET="whsec_local_test_secret" in .env.local und laufende lokale DB.
+ * Voraussetzung: STRIPE_WEBHOOK_SECRET="whsec_local_test_secret" in .env.local und E2E_DATABASE_URL.
  */
 const SECRET = process.env.E2E_STRIPE_WEBHOOK_SECRET ?? "whsec_local_test_secret";
-const DB_URL = process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5433/postgres?sslmode=disable";
+const DB_URL = process.env.E2E_DATABASE_URL ?? "";
 const stripe = new Stripe("sk_test_dummy");
 
 function signed(payload: object) {
@@ -20,6 +20,7 @@ function sessionEvent(id: string, session: Record<string, unknown>) {
   return { id, object: "event", type: "checkout.session.completed", api_version: "2025-01-01", created: Math.floor(Date.now() / 1000), data: { object: { object: "checkout.session", ...session } } };
 }
 
+test.skip(!DB_URL, "E2E_DATABASE_URL nicht gesetzt (Test benötigt eine Test-Datenbank, nie die Cloud-DB)");
 test.describe.configure({ mode: "serial" });
 
 test.describe("Stripe-Webhook", () => {

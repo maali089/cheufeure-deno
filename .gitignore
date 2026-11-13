@@ -9,6 +9,4 @@ src/generated/
 next-env.d.ts
 playwright-report/
 test-results/
-.local-db/
-.local-db-*/
 .vercel

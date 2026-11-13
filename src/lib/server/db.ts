@@ -2,11 +2,12 @@ import "server-only";
 import { rootCertificates } from "node:tls";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { databaseUrl } from "./db-url";
 import { SUPABASE_ROOT_CA } from "./supabase-ca";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const isDatabaseConfigured = () => Boolean(process.env.DATABASE_URL);
+export const isDatabaseConfigured = () => Boolean(databaseUrl());
 
 /**
  * Verbindungsdaten für node-postgres aufbereiten. Gehostete Datenbanken (z. B. Supabase)
@@ -29,11 +30,11 @@ function connectionOptions(raw: string) {
 }
 
 function createClient() {
-  const raw = process.env.DATABASE_URL;
-  if (!raw) throw new Error("DATABASE_URL ist nicht gesetzt.");
+  const raw = databaseUrl();
+  if (!raw) throw new Error("SUPABASE_PROJECT_REF / SUPABASE_DB_PASSWORD sind nicht gesetzt.");
   const adapter = new PrismaPg({
     ...connectionOptions(raw),
-    max: Number(process.env.DATABASE_POOL_MAX ?? 5),
+    max: Number(process.env.DATABASE_POOL_MAX ?? 3),
     connectionTimeoutMillis: 8000,
   });
   return new PrismaClient({ adapter });

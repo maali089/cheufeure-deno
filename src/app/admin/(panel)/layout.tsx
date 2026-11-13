@@ -40,7 +40,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       </header>
       <main className="container-lux py-10">
         {!isDatabaseConfigured() ? (
-          <p className="border-l-2 border-gold bg-gold/[0.06] px-4 py-3 text-sm">DATABASE_URL ist nicht gesetzt – es können keine Daten angezeigt werden.</p>
+          <p className="border-l-2 border-gold bg-gold/[0.06] px-4 py-3 text-sm">SUPABASE_PROJECT_REF / SUPABASE_DB_PASSWORD sind nicht gesetzt – es können keine Daten angezeigt werden.</p>
         ) : (
           children
         )}

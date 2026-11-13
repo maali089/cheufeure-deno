@@ -8,7 +8,7 @@ import pg from "pg";
  */
 export default async function globalSetup() {
   loadEnv({ path: ".env.local", quiet: true });
-  const url = process.env.E2E_DATABASE_URL ?? process.env.DATABASE_URL;
+  const url = process.env.E2E_DATABASE_URL;
   if (!url) return;
   const host = new URL(url).hostname;
   if (!["127.0.0.1", "localhost", "[::1]"].includes(host)) return;

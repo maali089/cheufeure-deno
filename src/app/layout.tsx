@@ -18,9 +18,10 @@ const manrope = Manrope({
   display: "swap",
 });
 
-const title = "DEENO – Chauffeur- & Limousinenservice in Maisach und München";
+const title = "DEENO Chauffeurservice Maisach & München | Limousinenservice";
+const ogTitle = "DEENO – Chauffeur- & Limousinenservice in München";
 const description =
-  "Chauffeurservice und Limousinenservice aus Maisach: Flughafentransfer München, Business- und VIP-Fahrten, Event- und Hochzeitsfahrten sowie Stundenbuchungen. Jetzt Fahrt anfragen.";
+  "Chauffeur- und Limousinenservice aus Maisach: Flughafentransfer München, Business-, Event- und Hochzeitsfahrten. Fahrt jetzt online anfragen.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -42,10 +43,10 @@ export const metadata: Metadata = {
     locale: "de_DE",
     url: siteUrl,
     siteName: "DEENO Chauffeur- & Limousinenservice",
-    title,
+    title: ogTitle,
     description,
   },
-  twitter: { card: "summary_large_image", title, description },
+  twitter: { card: "summary_large_image", title: ogTitle, description },
   robots: siteIndexable ? { index: true, follow: true } : { index: false, follow: false },
   formatDetection: { telephone: false, email: false, address: false },
 };

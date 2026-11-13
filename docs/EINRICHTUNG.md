@@ -4,8 +4,7 @@
 
 ```bash
 npm install
-npm run db:local          # lokale PostgreSQL-kompatible Test-DB (PGlite) auf Port 5433 – separates Terminal
-DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5433/postgres?sslmode=disable" npx prisma migrate deploy
+npm run db:push          # Migrationen aus supabase/migrations/ auf das verknüpfte Supabase-Projekt anwenden
 npm run build && npm start   # http://localhost:3000
 ```
 
@@ -26,7 +25,7 @@ npm run test:visual      # Screenshots nach test-results/visual
 
 | Dienst | Zweck | Variablen | Status |
 |---|---|---|---|
-| PostgreSQL (z. B. Neon, Supabase, Vercel Postgres) | Speicherung der Anfragen | `DATABASE_URL` | **fehlt** |
+| Supabase (PostgreSQL) | Speicherung der Anfragen | `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD` | **fehlt** |
 | Resend (resend.com) | E-Mail an Betreiber + Eingangsbestätigung an Kunden | `RESEND_API_KEY`, `MAIL_FROM` | **fehlt** |
 | Eigene Domain bei Resend verifizieren | Absenderadresse (nicht @yahoo.com möglich) | `MAIL_FROM` | **fehlt** |
 | OpenStreetMap: Photon (Adresssuche) + OSRM (Routen), kostenlos, kein API-Schlüssel | Adress-Autovervollständigung, Routen | `ADDRESS_AUTOCOMPLETE_ENABLED`, `ROUTE_CALCULATION_ENABLED`, optional `PHOTON_URL`, `OSRM_URL` | optional |

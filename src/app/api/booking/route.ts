@@ -52,7 +52,7 @@ export async function POST(req: Request) {
   }
 
   if (!isDatabaseConfigured()) {
-    console.error("[booking] DATABASE_URL fehlt – Anfrage kann nicht gespeichert werden.");
+    console.error("[booking] SUPABASE_DB_PASSWORD fehlt – Anfrage kann nicht gespeichert werden.");
     return jsonError(503, "Online-Anfragen sind momentan nicht verfügbar. Bitte kontaktieren Sie uns telefonisch oder per E-Mail.");
   }
 

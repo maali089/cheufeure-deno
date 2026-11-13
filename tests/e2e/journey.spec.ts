@@ -11,7 +11,7 @@ import { adminLogin, futureDate, randomIp } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
-const DB_URL = process.env.E2E_DATABASE_URL ?? process.env.DATABASE_URL ?? "";
+const DB_URL = process.env.E2E_DATABASE_URL ?? "";
 const isLocalDb = (() => {
   try {
     return ["127.0.0.1", "localhost"].includes(new URL(DB_URL).hostname);

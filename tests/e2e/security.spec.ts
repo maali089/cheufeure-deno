@@ -12,7 +12,7 @@ test.describe.configure({ mode: "serial" });
 
 // next start läuft im Produktionsmodus → Cookie mit __Host-Präfix
 const COOKIE = process.env.E2E_SESSION_COOKIE ?? "__Host-deeno_admin";
-const DB_URL = process.env.E2E_DATABASE_URL ?? process.env.DATABASE_URL ?? "";
+const DB_URL = process.env.E2E_DATABASE_URL ?? "";
 const isLocalDb = (() => {
   try {
     return ["127.0.0.1", "localhost"].includes(new URL(DB_URL).hostname);

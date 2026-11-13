@@ -15,8 +15,6 @@
     "db:check": "prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code",
     "db:status": "supabase migration list --remote",
     "db:push": "supabase db push --remote",
-    "db:local": "node scripts/local-db.mjs",
-    "db:local:migrate": "node scripts/local-migrate.mjs",
     "admin:hash": "node scripts/hash-password.mjs",
     "admin:totp": "node scripts/totp-secret.mjs",
     "test:unit": "playwright test --project=unit",
@@ -48,8 +46,6 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.13",
-    "@electric-sql/pglite-socket": "^0.2.16",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.20.5",

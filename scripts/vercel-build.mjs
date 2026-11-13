@@ -13,16 +13,19 @@ const run = (cmd) => execSync(cmd, { stdio: "inherit" });
 
 run("prisma generate");
 
-const rawUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
+// Verbindung wird – wie in der App (src/lib/server/db-url.ts) – aus SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD abgeleitet
+// (Session-Pooler, Port 5432).
+const ref = process.env.SUPABASE_PROJECT_REF?.trim();
+const password = process.env.SUPABASE_DB_PASSWORD;
+const host = process.env.SUPABASE_DB_HOST?.trim() || "aws-0-eu-west-1.pooler.supabase.com";
 if (process.env.SKIP_DB_MIGRATIONS === "1") {
   console.warn("[vercel-build] SKIP_DB_MIGRATIONS=1 – Migrationen übersprungen.");
-} else if (!rawUrl) {
-  console.warn("[vercel-build] DATABASE_URL fehlt – Migrationen übersprungen. Buchungen werden erst mit Datenbank gespeichert.");
+} else if (!ref || !password) {
+  console.warn("[vercel-build] SUPABASE_PROJECT_REF/SUPABASE_DB_PASSWORD fehlen – Migrationen übersprungen. Buchungen werden erst mit Datenbank gespeichert.");
 } else {
-  // Parameter, die nur Prisma/pg kennen, würde die Supabase CLI als Server-Einstellung senden → entfernen.
-  const url = new URL(rawUrl);
-  for (const key of ["pgbouncer", "supa", "connection_limit", "uselibpqcompat"]) url.searchParams.delete(key);
-  if (!url.searchParams.has("sslmode") && !["127.0.0.1", "localhost"].includes(url.hostname)) url.searchParams.set("sslmode", "require");
+  const url = new URL(`postgresql://postgres.${ref}@${host}:5432/postgres`);
+  url.password = password;
+  url.searchParams.set("sslmode", "require");
   try {
     // URL als Argument ohne Shell: kein Escaping-Problem, Passwort erscheint nicht im Log
     const cli = createRequire(import.meta.url).resolve("supabase/dist/supabase.js");

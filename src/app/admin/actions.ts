@@ -21,7 +21,7 @@ const GENERIC_LOGIN_ERROR = "Anmeldung fehlgeschlagen. Bitte Benutzername, Passw
 
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
   if (!isAdminConfigured()) return { error: "Der Adminbereich ist noch nicht eingerichtet (ADMIN_PASSWORD_HASH / ADMIN_SESSION_SECRET fehlen)." };
-  if (!isDatabaseConfigured()) return { error: "Der Adminbereich benötigt eine Datenbankverbindung (DATABASE_URL)." };
+  if (!isDatabaseConfigured()) return { error: "Der Adminbereich benötigt eine Datenbankverbindung (SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD)." };
   const mfa = mfaStatus();
   if (mfa === "required") return { error: "Zwei-Faktor-Anmeldung ist vorgeschrieben, aber nicht eingerichtet (ADMIN_TOTP_SECRET fehlt, siehe SECURITY_AUDIT.md)." };
 
